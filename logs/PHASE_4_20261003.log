@@ -1,0 +1,32 @@
+# MyStockAlert Phase 4 Execution Log
+Date: 2026-10-03
+
+## Scope
+Alert Engine: portfolio market-open/close events, watchlist thresholds, anti-spam/reset, persistence, and worker integration.
+
+## Implementation
+- Added Alembic revision 0003_alert_state.
+- Added upper_armed, lower_armed, and last_triggered_at to alert_rules.
+- Added backend/app/alerts.py.
+- Added POST /api/v1/alerts/evaluate.
+- Worker now evaluates alerts after each market quote poll.
+- Portfolio session events are deduplicated by user, market, alert type, and local trading date.
+- Watchlist upper/lower alerts use quote change_percent from the previous close.
+
+## Anti-spam behavior
+- Upper: trigger when change_percent >= upper threshold; disarm until change_percent returns below threshold.
+- Lower: trigger when change_percent <= lower threshold; disarm until change_percent returns above threshold.
+- A second alert is therefore not emitted while the price remains beyond the threshold.
+
+## Verification
+- Python compileall: PASS.
+- Alembic upgrade head: PASS; 0002_market_quotes and 0003_alert_state applied.
+- Backend rebuilt and restarted successfully.
+- POST /api/v1/alerts/evaluate with empty data: HTTP 200, created=0.
+- Integration hysteresis test: threshold +5%, quote +6% => created=1; repeat at +6% => created=0; reset at +4% => created=0; cross again at +6% => created=1.
+- Test watchlist/quote/history records were deleted after verification; alert history returned empty.
+- git diff --check: PASS.
+
+## Notes
+- Alert records remain status=pending until Phase 5 LINE delivery consumes them.
+- Phase 5 will implement notification delivery/retry rather than treating pending events as delivered.

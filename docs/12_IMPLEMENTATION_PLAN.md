@@ -38,11 +38,14 @@
 - [x] Background worker polling
 - [x] Dashboard/Portfolio current price and P/L display
 
-## Phase 4 - Alert Engine
-- Portfolio open/close jobs
-- Threshold evaluation
-- Anti-spam/reset logic
-- Alert persistence
+## Phase 4 - Alert Engine — COMPLETED
+- [x] Portfolio market-open/market-close evaluation
+- [x] Watchlist upper/lower threshold evaluation
+- [x] Anti-spam armed/disarmed state
+- [x] Reset after crossing back through threshold
+- [x] Alert persistence
+- [x] Worker integration
+- [x] Duplicate prevention for session alerts
 
 ## Phase 5 - LINE
 - Credential configuration

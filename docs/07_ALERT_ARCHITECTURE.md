@@ -36,3 +36,15 @@ Allow a new alert after the price resets across the threshold.
 8. Record delivery result
 
 Failed LINE deliveries remain recorded for retry.
+
+
+## Phase 4 Implementation
+- Alert engine: `backend/app/alerts.py`.
+- Worker flow now fetches quotes and calls `POST /api/v1/alerts/evaluate` every polling cycle.
+- Watchlist thresholds use the provider quote `change_percent`, which is based on the previous close.
+- Each rule stores independent `upper_armed` and `lower_armed` state.
+- Upper alert triggers at or above the upper threshold and disarms until price change returns below it.
+- Lower alert triggers at or below the lower threshold and disarms until price change returns above it.
+- Portfolio market-open and market-close events are generated once per market/day for each enabled holding.
+- Duplicate portfolio session events are prevented by checking the same user, market, alert type, and local trading date.
+- Phase 5 will consume pending alert events for LINE delivery and update delivery status.

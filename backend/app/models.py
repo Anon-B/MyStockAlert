@@ -44,6 +44,9 @@ class AlertRule(Base):
     upper_percent: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     lower_percent: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    upper_armed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    lower_armed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

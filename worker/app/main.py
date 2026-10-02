@@ -14,7 +14,10 @@ async def poll_market() -> None:
             response = await client.get(f"{BACKEND_URL}/api/v1/market/quotes")
             response.raise_for_status()
             quotes = response.json()
-        print(f"market poll ok quotes={len(quotes)} started={started.isoformat()}")
+            alert_response = await client.post(f"{BACKEND_URL}/api/v1/alerts/evaluate")
+            alert_response.raise_for_status()
+            result = alert_response.json()
+        print(f"market poll ok quotes={len(quotes)} alerts_created={result.get('created', 0)} started={started.isoformat()}")
     except Exception as exc:
         print(f"market poll failed error={exc}")
 

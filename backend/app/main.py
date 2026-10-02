@@ -8,6 +8,7 @@ from .models import AlertHistory, AlertRule, PortfolioHolding, Setting, User, Wa
 from .models import MarketQuote
 from .market.calendar import market_status
 from .market.providers import YahooProvider
+from .alerts import evaluate_alerts
 from .schemas import MarketStatusOut, QuoteOut
 from .schemas import AlertHistoryOut, PortfolioCreate, PortfolioOut, PortfolioUpdate, SettingIn, SettingOut, WatchlistCreate, WatchlistOut, WatchlistUpdate
 
@@ -155,3 +156,9 @@ async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_
         age = (now - row.quoted_at).total_seconds()
         output.append({"market":row.market,"symbol":row.symbol,"price":row.price,"currency":row.currency,"change_percent":row.change_percent,"source":row.source,"quoted_at":row.quoted_at,"stale":age > 300})
     return output
+
+
+@app.post("/api/v1/alerts/evaluate")
+def evaluate_alerts_api(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    rows = evaluate_alerts(db, user)
+    return {"created": len(rows), "alerts": [{"id": str(x.id), "market": x.market, "symbol": x.symbol, "type": x.alert_type, "change_percent": x.change_percent} for x in rows]}
