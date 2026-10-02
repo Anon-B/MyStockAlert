@@ -1,0 +1,35 @@
+Phase 6 Testing Log
+Date: 2026-10-03
+Project: /Users/anonpond/MyStockAlert
+
+Scope
+- Phase 5 LINE Messaging API skipped by explicit request.
+- Phase 6 testing implemented and verified.
+
+Added
+- backend/tests/conftest.py
+- backend/tests/test_api.py
+- backend/tests/test_alerts.py
+- worker/tests/test_main.py
+- frontend/tests/smoke.mjs
+- scripts/test_e2e.sh
+- docs/PHASE_6_TESTING.md
+
+Infrastructure changes
+- Backend Docker image now includes tests.
+- Worker Docker image now includes tests.
+- Worker test dependency: pytest==8.4.2.
+- Frontend npm test script added.
+
+Verification
+- Backend pytest: 6 passed, 1 warning.
+- Worker pytest: 2 passed.
+- Frontend smoke test: passed.
+- Frontend production build: passed.
+- E2E smoke test: passed.
+- Docker services remained running.
+
+Notes
+- Alert test initially hit the global market_quotes unique key because TESTPH6 was already present from earlier work.
+- Test isolation was corrected by using a unique symbol and removing the quote after the test.
+- No LINE credentials or external notification calls were introduced.

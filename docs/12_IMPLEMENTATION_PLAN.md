@@ -47,19 +47,21 @@
 - [x] Worker integration
 - [x] Duplicate prevention for session alerts
 
-## Phase 5 - LINE
-- Credential configuration
-- Notification adapter
-- Test notification
-- Retry handling
+## Phase 5 - LINE — SKIPPED BY REQUEST
+- [ ] Credential configuration
+- [ ] Notification adapter
+- [ ] Test notification
+- [ ] Retry handling
 
-## Phase 6 - Testing
-- API tests
-- Database tests
-- Worker tests
-- Alert rule tests
-- Frontend tests
-- End-to-end tests
+## Phase 6 - Testing — COMPLETED
+- [x] API tests
+- [x] Database persistence tests
+- [x] Worker tests
+- [x] Alert rule / hysteresis tests
+- [x] Frontend smoke tests
+- [x] Frontend production build
+- [x] End-to-end smoke test
+- [x] Dockerized test execution
 ## Phase 7 - Hardening
 - Authentication
 - Secret handling
