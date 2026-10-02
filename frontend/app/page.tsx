@@ -1,26 +1,39 @@
-export default function Home() {
-  return (
-    <main className="ms-main">
-      <h1>MyStockAlert</h1>
-      <p>Stock Portfolio & Alert System</p>
-      <section className="ms-grid ms-grid-4" style={{ marginTop: 24 }}>
-        <article className="ms-card ms-card-body">
-          <div>Portfolio Value</div>
-          <div className="ms-stat-value">฿0.00</div>
-        </article>
-        <article className="ms-card ms-card-body">
-          <div>Total P/L</div>
-          <div className="ms-stat-value ms-positive">0.00%</div>
-        </article>
-        <article className="ms-card ms-card-body">
-          <div>Watchlist</div>
-          <div className="ms-stat-value">0</div>
-        </article>
-        <article className="ms-card ms-card-body">
-          <div>Alerts</div>
-          <div className="ms-stat-value">0</div>
-        </article>
-      </section>
-    </main>
-  );
+"use client";
+import { useEffect, useState } from "react";
+
+type Holding={id:string;market:string;symbol:string;quantity:string;average_cost:string;currency:string;enabled:boolean};
+type Watch={id:string;market:string;symbol:string;enabled:boolean;upper_percent:string|null;lower_percent:string|null};
+type Alert={id:string;market:string;symbol:string;alert_type:string;change_percent:string|null;status:string;sent_at:string|null};
+type Setting={key:string;value:unknown};
+const API=process.env.NEXT_PUBLIC_API_URL||"http://localhost:8000";
+const NAV:{[k:string]:string}={dashboard:"Dashboard",portfolio:"Portfolio",watchlist:"Watchlist",alerts:"Alert History",settings:"Settings"};
+const pct=(v:string|null)=>v==null?"—":`${Number(v)>=0?"+":""}${Number(v).toFixed(2)}%`;
+
+export default function Home(){
+ const[page,setPage]=useState("dashboard"),[holdings,setHoldings]=useState<Holding[]>([]),[watch,setWatch]=useState<Watch[]>([]),[alerts,setAlerts]=useState<Alert[]>([]),[settings,setSettings]=useState<Setting[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ async function load(){setLoading(true);setError("");try{const r=await Promise.all(["portfolio","watchlist","alerts/history","settings"].map(x=>fetch(`${API}/api/v1/${x}`)));if(r.some(x=>!x.ok))throw Error();setHoldings(await r[0].json());setWatch(await r[1].json());setAlerts(await r[2].json());setSettings(await r[3].json())}catch{setError("เชื่อมต่อ API ไม่สำเร็จ")}finally{setLoading(false)}}
+ useEffect(()=>{load()},[]);
+ return <div className="ms-shell"><aside className="ms-sidebar"><div className="ms-brand"><div className="ms-brand-mark">MS</div><div><strong>MyStockAlert</strong><small>Portfolio Monitor</small></div></div><nav>{Object.entries(NAV).map(([k,v])=><button key={k} className={page===k?"ms-nav ms-nav-active":"ms-nav"} onClick={()=>setPage(k)}>{v}</button>)}</nav><div className="ms-sidebar-footer"><span className="ms-dot"/> API Connected</div></aside>
+ <main className="ms-main"><header className="ms-header"><div><h1>{NAV[page]}</h1><p>Stock Portfolio & Alert System</p></div><button className="ms-button ms-button-light" onClick={load}>↻ Refresh</button></header>{error&&<div className="ms-banner ms-banner-error">{error}</div>}{loading?<div className="ms-card ms-card-body">กำลังโหลดข้อมูล...</div>:page==="dashboard"?<Dashboard h={holdings} w={watch} a={alerts}/>:page==="portfolio"?<Portfolio rows={holdings} reload={load}/>:page==="watchlist"?<Watchlist rows={watch} reload={load}/>:page==="alerts"?<Alerts rows={alerts}/>:<Settings rows={settings} reload={load}/>}</main></div>}
+function Card({label,value}:{label:string;value:string}){return <article className="ms-card ms-card-body"><div className="ms-label">{label}</div><div className="ms-stat-value">{value}</div></article>}
+function Dashboard({h,w,a}:{h:Holding[];w:Watch[];a:Alert[]}){return <><section className="ms-grid ms-grid-4"><Card label="Portfolio Holdings" value={String(h.length)}/><Card label="Thai Stocks" value={String(h.filter(x=>x.market==="TH").length)}/><Card label="US Stocks" value={String(h.filter(x=>x.market==="US").length)}/><Card label="Alert History" value={String(a.length)}/></section><section className="ms-grid ms-grid-2 ms-dashboard-gap"><div className="ms-card"><div className="ms-card-header"><h2 className="ms-section-title">Portfolio</h2></div><StockTable rows={h}/></div><div className="ms-card"><div className="ms-card-header"><h2 className="ms-section-title">Watchlist</h2></div><WatchTable rows={w}/></div></section></>}
+function StockTable({rows}:{rows:Holding[]}){return <div className="ms-table-wrap"><table className="ms-table"><thead><tr><th>Market</th><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Currency</th></tr></thead><tbody>{rows.map(x=><tr key={x.id}><td>{x.market}</td><td><strong>{x.symbol}</strong></td><td>{x.quantity}</td><td>{x.average_cost}</td><td>{x.currency}</td></tr>)}</tbody></table>{!rows.length&&<Empty text="ยังไม่มีหุ้นใน Portfolio"/>}</div>}
+function WatchTable({rows}:{rows:Watch[]}){return <div className="ms-table-wrap"><table className="ms-table"><thead><tr><th>Market</th><th>Symbol</th><th>Upper</th><th>Lower</th></tr></thead><tbody>{rows.map(x=><tr key={x.id}><td>{x.market}</td><td><strong>{x.symbol}</strong></td><td className="ms-positive">{pct(x.upper_percent)}</td><td className="ms-negative">{pct(x.lower_percent)}</td></tr>)}</tbody></table>{!rows.length&&<Empty text="ยังไม่มี Watchlist"/>}</div>}
+function Form({children}:{children:React.ReactNode}){return <div className="ms-form-row">{children}</div>}
+function Empty({text}:{text:string}){return <div className="ms-empty">{text}</div>}
+function Portfolio({rows,reload}:{rows:Holding[];reload:()=>void}){
+ const[f,setF]=useState({market:"TH",symbol:"",quantity:"",average_cost:"",currency:"THB"});
+ async function add(){const r=await fetch(`${API}/api/v1/portfolio`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...f,quantity:Number(f.quantity),average_cost:Number(f.average_cost)})});if(r.ok){setF({...f,symbol:"",quantity:"",average_cost:""});reload()}else alert("เพิ่ม Portfolio ไม่สำเร็จ")}
+ return <section className="ms-card"><div className="ms-card-header"><div><h2 className="ms-section-title">Add Holding</h2><p className="ms-section-subtitle">เพิ่มหุ้นที่ถืออยู่</p></div></div><Form><select value={f.market} onChange={e=>setF({...f,market:e.target.value,currency:e.target.value==="TH"?"THB":"USD"})}><option>TH</option><option>US</option></select><input placeholder="Symbol" value={f.symbol} onChange={e=>setF({...f,symbol:e.target.value})}/><input placeholder="Quantity" type="number" value={f.quantity} onChange={e=>setF({...f,quantity:e.target.value})}/><input placeholder="Average Cost" type="number" value={f.average_cost} onChange={e=>setF({...f,average_cost:e.target.value})}/><button className="ms-button" onClick={add}>Add</button></Form><StockTable rows={rows}/></section>
+}
+function Watchlist({rows,reload}:{rows:Watch[];reload:()=>void}){
+ const[f,setF]=useState({market:"TH",symbol:"",upper_percent:"",lower_percent:""});
+ async function add(){const r=await fetch(`${API}/api/v1/watchlist`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...f,upper_percent:f.upper_percent?Number(f.upper_percent):null,lower_percent:f.lower_percent?Number(f.lower_percent):null})});if(r.ok){setF({...f,symbol:"",upper_percent:"",lower_percent:""});reload()}else alert("เพิ่ม Watchlist ไม่สำเร็จ")}
+ return <section className="ms-card"><div className="ms-card-header"><div><h2 className="ms-section-title">Add Watchlist</h2><p className="ms-section-subtitle">กำหนด Upper / Lower threshold</p></div></div><Form><select value={f.market} onChange={e=>setF({...f,market:e.target.value})}><option>TH</option><option>US</option></select><input placeholder="Symbol" value={f.symbol} onChange={e=>setF({...f,symbol:e.target.value})}/><input placeholder="Upper %" type="number" value={f.upper_percent} onChange={e=>setF({...f,upper_percent:e.target.value})}/><input placeholder="Lower %" type="number" value={f.lower_percent} onChange={e=>setF({...f,lower_percent:e.target.value})}/><button className="ms-button" onClick={add}>Add</button></Form><WatchTable rows={rows}/></section>
+}
+function Alerts({rows}:{rows:Alert[]}){return <section className="ms-card"><div className="ms-card-header"><h2 className="ms-section-title">Alert History</h2></div><div className="ms-table-wrap"><table className="ms-table"><thead><tr><th>Time</th><th>Market</th><th>Symbol</th><th>Type</th><th>Change</th><th>Status</th></tr></thead><tbody>{rows.map(x=><tr key={x.id}><td>{x.sent_at?new Date(x.sent_at).toLocaleString("th-TH"):"—"}</td><td>{x.market}</td><td><strong>{x.symbol}</strong></td><td>{x.alert_type}</td><td className={Number(x.change_percent)>=0?"ms-positive":"ms-negative"}>{pct(x.change_percent)}</td><td>{x.status}</td></tr>)}</tbody></table>{!rows.length&&<Empty text="ยังไม่มีประวัติการแจ้งเตือน"/>}</div></section>}
+function Settings({rows,reload}:{rows:Setting[];reload:()=>void}){
+ const[k,setK]=useState("refresh_interval"),[v,setV]=useState("30");
+ async function save(){const n=Number(v);const r=await fetch(`${API}/api/v1/settings/${k}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:Number.isNaN(n)?v:n})});if(r.ok)reload();else alert("บันทึกไม่สำเร็จ")}
+ return <section className="ms-grid ms-grid-2"><div className="ms-card ms-card-body"><h2 className="ms-section-title">System Settings</h2><p className="ms-section-subtitle">ตั้งค่าระบบพื้นฐาน</p><div className="ms-form"><input value={k} onChange={e=>setK(e.target.value)} placeholder="Setting key"/><input value={v} onChange={e=>setV(e.target.value)} placeholder="Value"/><button className="ms-button" onClick={save}>Save</button></div></div><div className="ms-card"><div className="ms-card-header"><h2 className="ms-section-title">Current Settings</h2></div><table className="ms-table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>{rows.map(x=><tr key={x.key}><td><strong>{x.key}</strong></td><td>{String(x.value)}</td></tr>)}</tbody></table>{!rows.length&&<Empty text="ยังไม่มี Settings"/>}</div></section>
 }

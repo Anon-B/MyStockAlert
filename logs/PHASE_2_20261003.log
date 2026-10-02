@@ -1,0 +1,27 @@
+
+[PHASE 2 START] 2026-10-03 00:33:59 +0700
+=== FRONTEND HTTP ===
+200
+=== BACKEND HTTP ===
+200
+{"status":"ok","service":"backend","timestamp":"2026-10-02T17:34:34.066268+00:00"}
+=== SERVICES ===
+NAME                      IMAGE                   COMMAND                  SERVICE    CREATED          STATUS                   PORTS
+mystockalert-backend-1    mystockalert-backend    "sh -c 'alembic upgr…"   backend    4 minutes ago    Up 4 minutes             0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+mystockalert-frontend-1   mystockalert-frontend   "docker-entrypoint.s…"   frontend   24 seconds ago   Up 12 seconds            0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+mystockalert-postgres-1   postgres:17-alpine      "docker-entrypoint.s…"   postgres   6 minutes ago    Up 6 minutes (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+mystockalert-worker-1     mystockalert-worker     "python -m app.main"     worker     6 minutes ago    Up 6 minutes             
+=== BUILD LOG ===
+frontend-1  | 
+frontend-1  | > start
+frontend-1  | > next start
+frontend-1  | 
+frontend-1  |    ▲ Next.js 15.5.27
+frontend-1  |    - Local:        http://localhost:3000
+frontend-1  |    - Network:      http://172.18.0.5:3000
+frontend-1  | 
+frontend-1  |  ✓ Starting...
+frontend-1  |  ✓ Ready in 113ms
+
+[STEP] Phase 2 verification passed: frontend=200, backend=200, all four Docker services running.
+[STEP] Next.js production build completed successfully.

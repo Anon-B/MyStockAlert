@@ -18,12 +18,14 @@
 - [x] Alert history API
 - [x] API validation and duplicate handling
 
-## Phase 2 - Web UI
-- Dashboard
-- Portfolio page
-- Watchlist page
-- Alerts page
-- Settings page
+## Phase 2 - Web UI — COMPLETED
+- [x] Dashboard
+- [x] Portfolio page
+- [x] Watchlist page
+- [x] Alerts page
+- [x] Settings page
+- [x] API integration
+- [x] Responsive layout and UI theme
 
 ## Phase 3 - Market Data
 - Provider adapter
