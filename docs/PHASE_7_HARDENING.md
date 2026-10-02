@@ -1,66 +1,53 @@
-# Phase 7 — Hardening Items 2–8
+# Phase 7 — Hardening
 
-Implemented items from the project review:
-- 2. Frontend CRUD completeness
-- 3. Trading calendar
-- 4. Market-data resilience
-- 5. Portfolio/P&L calculations
-- 6. Alert delivery/outbox model
-- 7. Typed settings
-- 8. Database hardening
+## Completed in Current Codebase
+- frontend CRUD for Portfolio/Watchlist
+- portfolio transaction model and UI
+- optional fee fields
+- trading calendar with 2026 holidays/early closes
+- provider timeout/retry and cached quote fallback
+- portfolio summary and stale quote indication
+- Stock Master sync
+- USD/THB FX with fallback
+- alert armed/re-arm state
+- idempotency keys
+- AlertOutbox model
+- Alembic migrations through 0009
+- System Status UI
 
-## Frontend CRUD
-Portfolio and Watchlist now expose add, edit and delete controls.
-Market/currency are normalized and validated by the API.
-Dashboard shows THB and USD totals separately.
-System status is loaded from the real API instead of a hard-coded badge.
+## Remaining Production Hardening
+### 1. Authentication / Authorization
+Replace demo-user dependency with real identity and authorization.
 
-## Trading calendar
-TH uses Asia/Bangkok with SET 2026 holidays.
-US uses America/New_York with NYSE 2026 holidays.
-US early closes implemented for 2026-11-27 and 2026-12-24.
-DST is handled by ZoneInfo.
-Weekend and holiday tests remain deterministic.
+### 2. Notification Delivery
+Implement LINE sender, retry/backoff and delivery status updates.
 
-## Market-data resilience
-Yahoo provider now uses a 5-second timeout, retry loop and exponential backoff.
-HTTP 429 is treated as provider rate limiting.
-Quote cache remains the fallback when provider calls fail.
-Provider health endpoint reports live provider status and latency.
-## Portfolio calculations
-`GET /api/v1/portfolio/summary` now returns cost basis, current value, P/L amount,
-P/L percentage and stale status for each enabled holding.
-THB and USD totals are kept separate.
-An FX setting is exposed in the typed Settings UI; cross-currency display is not
-forced when native currency is selected.
+### 3. Secrets
+Move secrets to secret manager and rotate credentials.
 
-## Alert delivery model
-Alert creation now records triggered_at separately from delivery.
-sent_at/delivered_at remain empty until a delivery adapter succeeds.
-retry_count and last_error are stored on alert history.
-alert_outbox provides a durable pending delivery record with attempts and next_attempt_at.
-idempotency_key prevents duplicate alert creation.
+### 4. Observability
+Add structured logs, metrics, tracing and alerting.
 
-LINE remains intentionally skipped; the outbox is ready for a later LINE adapter.
+### 5. Database Operations
+Automated backup, restore verification, retention and migration rollback strategy.
 
-## Typed settings
-The UI exposes refresh interval, notification toggle, open/close alert toggles,
-display currency and USD/THB FX.
-Existing generic settings API remains backward compatible.
+### 6. Provider Resilience
+Provider abstraction for more than one quote provider and stronger rate-limit handling.
 
-## Database hardening
-Migration 0004 adds query indexes, market/currency checks, alert idempotency,
-and outbox indexes.
-Migration 0005 adds database-level updated_at triggers.
-Alembic head verified at 0005_timestamp_triggers.
+### 7. CI/CD
+Run backend/worker tests, frontend build, security scans and deployment checks on every merge/release.
+
+### 8. Frontend Tests
+Add component/browser E2E tests for CRUD, settings and alert history.
 
 ## Verification
-- Backend calendar/provider/helper tests: 8 passed.
-- Worker tests: 2 passed.
-- Frontend smoke test: passed.
-- Next.js production build: passed.
-- Real API CRUD/P&L/alert evaluation executed against Docker PostgreSQL.
-- Duplicate alert evaluation returned created=0.
-- Provider health was exercised against live Yahoo; current Yahoo calls failed,
-  and the cache fallback remained available.
-- Test records are intentionally NOT deleted.
+Before each release:
+```bash
+docker-compose build backend worker frontend
+docker-compose up -d
+docker-compose exec backend pytest -q
+docker-compose exec worker pytest -q
+./scripts/test_e2e.sh
+curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:3000 >/dev/null
+```

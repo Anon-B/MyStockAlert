@@ -38,8 +38,11 @@ def evaluate_watchlist(db: Session, user: User, now: datetime | None = None) -> 
             rule.lower_armed = False
         if not alert_type:
             continue
+        previous_trigger = rule.last_triggered_at.isoformat() if rule.last_triggered_at else "never"
         rule.last_triggered_at = now
-        key = f"watch:{user.id}:{item.id}:{alert_type}:{now.date()}:{now.hour}:{now.minute}"
+        # Keep the idempotency key stable for one armed cycle, but allow a
+        # new alert after the rule has been re-armed in the same minute.
+        key = f"watch:{user.id}:{item.id}:{alert_type}:{previous_trigger}"
         row = AlertHistory(user_id=user.id, symbol=item.symbol, market=item.market, alert_type=alert_type,
             reference_price=None, trigger_price=quote.price, change_percent=change,
             message=f"{item.market} {item.symbol} threshold price={price} change={change:.2f}%" if change is not None else f"{item.market} {item.symbol} price={price}", triggered_at=now,

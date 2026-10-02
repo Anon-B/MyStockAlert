@@ -1,77 +1,59 @@
 # Database Architecture
 
-## Tables
+## Migration Chain
+```text
+0001_initial
+ -> 0002_market_quotes
+ -> 0003_alert_state
+ -> 0004_hardening
+ -> 0005_timestamp_triggers
+ -> 0006_portfolio_transactions
+ -> 0007_stock_master
+ -> 0008_fx_rates
+ -> 0009_watch_price_alerts
+```
 
+## Tables
 ### users
-- id
-- username
-- password_hash
-- created_at
-- updated_at
+Identity placeholder; current application resolves the seeded `demo` user.
 
 ### portfolio_holdings
-- id
-- user_id
-- market
-- symbol
-- quantity
-- average_cost
-- currency
-- enabled
-- created_at
-- updated_at
+`market, symbol, quantity, average_cost, currency, enabled` และ timestamps.
+
+### portfolio_transactions
+BUY/SELL, order ID, quantity, execution price, trading value, optional fee fields, FX rate, net amount, executed time.
 
 ### watchlist_items
-- id
-- user_id
-- market
-- symbol
-- enabled
-- created_at
-- updated_at
+User-owned market/symbol tracking rows.
 
 ### alert_rules
-- id
-- watchlist_item_id
-- upper_percent
-- lower_percent
-- enabled
-- created_at
-- updated_at
+One rule per watchlist item; percentage/price thresholds, enabled, armed state และ last trigger.
 
 ### alert_history
-- id
-- user_id
-- symbol
-- market
-- alert_type
-- reference_price
-- trigger_price
-- change_percent
-- message
-- sent_at
-- status
+Trigger record + reference/trigger price, change %, message, delivery timestamps, retry count, last error, idempotency key, status.
 
-### market_sessions
-- id
-- market
-- session_date
-- timezone
-- open_at
-- close_at
-- is_trading_day
+### alert_outbox
+Delivery queue abstraction with channel, status, attempts, next attempt time and last error.
 
 ### settings
-- id
-- user_id
-- key
-- value_encrypted_or_json
-- updated_at
+Per-user key/value JSONB settings.
 
-## Database Rules
+### stock_master
+Market symbol master: name, exchange, currency, active, source, synced time.
+
+### market_quotes
+Latest quote cache per market/symbol.
+
+### fx_rates
+USD/THB rate with source and quoted time.
+
+## Data Rules
 - UUID primary keys
-- NUMERIC for financial values
-- UTC timestamps
-- Market timezone for session calculations
-- Index frequently queried fields
-- Prevent duplicate active watchlist entries for the same user/market/symbol
+- user-owned tables use foreign keys with cascade
+- symbols normalized uppercase
+- market จำกัด `TH` / `US` ใน API normalization
+- quote freshness derived from `quoted_at`
+- alert idempotency key unique
+
+## Backup
+Production backup policyยังต้องกำหนดก่อนใช้งานจริง. Local Docker volume คือ `postgres_data`.

@@ -1,50 +1,48 @@
 # Alert Architecture
 
 ## Alert Types
-- PORTFOLIO_MARKET_OPEN
-- PORTFOLIO_MARKET_CLOSE
-- PRICE_UP_THRESHOLD
-- PRICE_DOWN_THRESHOLD
-- SYSTEM_ERROR
+- `watchlist_upper`
+- `watchlist_lower`
+- `portfolio_open_TH`
+- `portfolio_close_TH`
+- `portfolio_open_US`
+- `portfolio_close_US`
 
-## Portfolio P/L
-P/L% = (current price - average cost) / average cost * 100
+## Watchlist Evaluation
+1. โหลด enabled watchlist
+2. โหลด enabled alert rule
+3. อ่าน cached quote
+4. ตรวจ price และ change percentage
+5. ตรวจ armed state
+6. trigger เมื่อ threshold ถูกแตะ
+7. ปิด armed state ด้านที่ trigger
+8. สร้าง `AlertHistory`
+9. สร้าง `AlertOutbox`
 
-Quantity changes the P/L amount, not the percentage.
+## Re-arm
+Upper re-arms เมื่อ price/change กลับต่ำกว่า upper threshold.  
+Lower re-arms เมื่อ price/change กลับสูงกว่า lower threshold.
 
-## Watchlist Threshold
-V1 uses the previous official trading-day close as the reference price.
+## Anti-Spam / Idempotency
+- `idempotency_key` เป็น unique
+- watchlist key มี user/item/type/date/hour/minute
+- portfolio session ตรวจ existing alert ในวันเดียวกันก่อนสร้างซ้ำ
 
-Example:
-- Previous close = 100
-- Upper threshold = +5%
-- Trigger price = 105
+## Portfolio Session
+Trading calendar เป็นตัวกำหนดวันทำการและ session. เมื่อถึง open/close จะสร้าง alert ต่อ holding ที่มี quote.
 
-## Anti-Spam
-Alert only when a threshold is crossed.
-Do not repeat while price remains beyond the threshold.
-Allow a new alert after the price resets across the threshold.
+## Delivery Model
+Alert ถูกสร้างเป็น `pending` และมี `AlertOutbox(channel=line)` เพื่อรองรับ delivery worker/provider ในอนาคต. ปัจจุบัน LINE delivery จริงยังไม่เปิดใช้งาน.
 
 ## Worker Flow
-1. Load enabled markets and symbols
-2. Determine market session
-3. Fetch current prices
-4. Evaluate alert rules
-5. Create alert event
-6. Apply duplicate prevention
-7. Send LINE
-8. Record delivery result
+```text
+Timer
+ -> market quotes
+ -> PostgreSQL cache
+ -> evaluate alerts
+ -> AlertHistory
+ -> AlertOutbox
+```
 
-Failed LINE deliveries remain recorded for retry.
-
-
-## Phase 4 Implementation
-- Alert engine: `backend/app/alerts.py`.
-- Worker flow now fetches quotes and calls `POST /api/v1/alerts/evaluate` every polling cycle.
-- Watchlist thresholds use the provider quote `change_percent`, which is based on the previous close.
-- Each rule stores independent `upper_armed` and `lower_armed` state.
-- Upper alert triggers at or above the upper threshold and disarms until price change returns below it.
-- Lower alert triggers at or below the lower threshold and disarms until price change returns above it.
-- Portfolio market-open and market-close events are generated once per market/day for each enabled holding.
-- Duplicate portfolio session events are prevented by checking the same user, market, alert type, and local trading date.
-- Phase 5 will consume pending alert events for LINE delivery and update delivery status.
+## Important Limitation
+Worker ปัจจุบัน evaluate alert แต่ยังไม่มี sender จริงสำหรับ `AlertOutbox`.

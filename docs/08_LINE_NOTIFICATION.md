@@ -1,39 +1,31 @@
 # LINE Notification
 
 ## Role
-LINE is the primary notification channel for V1.
+LINE เป็นช่องทาง delivery ที่ออกแบบไว้สำหรับ AlertOutbox แต่ยังไม่เปิดเป็น production provider ใน v1.0.0.
 
-## Notification Types
-- Market open
-- Market close
-- Price threshold up
-- Price threshold down
-- System error
-- Test message
+## Planned Notification Types
+- Watchlist upper/lower
+- TH market open/close
+- US market open/close
 
-## Settings
-- Connection status
-- Credentials
-- Enable/disable notification categories
-- Test notification
-- Message detail options
+## Current State
+ระบบสร้าง `AlertHistory` และ `AlertOutbox(channel="line")` ได้ แต่ไม่มี credential/config และ sender service จริงใน repository ปัจจุบัน.
 
-## Security
-- Store credentials securely
-- Never return complete secrets to the UI
-- Mask secrets in settings
-- Never commit credentials to Git
+## Security Requirements
+เมื่อเพิ่ม LINE provider:
+- token/secret ต้องอยู่ใน environment/secret manager
+- ห้ามเก็บ token ใน Git
+- retry ต้องมี backoff และ max attempts
+- delivery result ต้องอัปเดต `sent_at`, `delivered_at`, `last_error`, `retry_count`
 
 ## Message Content
-Messages should normally include:
-- Market
-- Symbol
-- Current price
-- Percentage change
-- Threshold when applicable
-- Timestamp
-- Alert type
+ควรมีอย่างน้อย market, symbol, trigger type, price/change และ timestamp.
 
-## Implementation Note
-Use the currently supported LINE Messaging product/API at implementation time.
-Do not hard-code an obsolete integration mechanism.
+## Implementation Order
+1. provider interface
+2. secure credentials
+3. sender worker
+4. retry/backoff
+5. delivery status
+6. integration tests
+7. opt-in per user

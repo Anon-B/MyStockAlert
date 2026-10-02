@@ -1,39 +1,65 @@
 # Deployment
 
-## Runtime
-Use Docker Desktop and Docker Compose.
-
-## Services
-- frontend
+## Local Runtime
+Docker Compose ใช้ 4 services:
+- postgres:17-alpine
 - backend
 - worker
-- postgres
+- frontend
 
-## Basic Commands
-Start:
-docker compose up -d
+## Start
+```bash
+docker-compose up -d --build
+docker-compose ps
+```
 
-Check:
-docker compose ps
+## Verify
+```bash
+curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:3000 >/dev/null
+```
 
-Logs:
-docker compose logs -f
+## Logs
+```bash
+docker-compose logs -f backend
+docker-compose logs -f worker
+docker-compose logs -f frontend
+docker-compose logs -f postgres
+```
 
-Stop:
-docker compose down
+## Stop / Reset
+```bash
+docker-compose down
+```
+ลบ volume เฉพาะเมื่อยอมรับการลบ local database:
+```bash
+docker-compose down -v
+```
 
-## Environment
-Typical variables:
-- DATABASE_URL
-- APP_SECRET
-- MARKET_DATA credentials
-- LINE credentials
+## Migration
+Backend startup executes:
+```bash
+alembic upgrade head
+```
 
-Do not commit the real .env file.
+Manual:
+```bash
+docker-compose exec backend alembic current
+docker-compose exec backend alembic upgrade head
+```
+
+## Build Frontend
+```bash
+docker-compose build frontend
+docker-compose up -d --no-deps frontend
+```
 
 ## Backup
-Before using real portfolio data:
-1. Create a database backup
-2. Test restore
-3. Document the backup location
-4. Keep credentials separate from source code
+Local PostgreSQL:
+```bash
+docker-compose exec -T postgres pg_dump -U mystockalert mystockalert > backup.sql
+```
+Restore policyยังต้องกำหนดและทดสอบก่อน production.
+
+## Production Notes
+อย่าใช้ default `change-me`, อย่า expose PostgreSQL โดยไม่จำเป็น และต้องมี TLS/auth/backup/monitoring.

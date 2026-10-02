@@ -1,55 +1,35 @@
 # Phase 6 - Testing
 
 ## Scope
-Phase 5 LINE Messaging API is intentionally skipped. Phase 6 validates the implemented V1 foundation through API, database, worker, alert, frontend, and end-to-end tests.
+Testing covers backend API/database, alert logic, calendar, provider behavior, worker behavior and an E2E smoke path.
 
 ## Test Layers
-
-### Backend API / Database
-- pytest against the real PostgreSQL container
-- health endpoint
-- portfolio CRUD
-- watchlist duplicate protection
-- settings persistence
-- market status / empty quote behavior
-
-### Alert Engine
-- upper threshold trigger
-- anti-spam disarm behavior
-- reset after crossing back below threshold
-- second trigger after reset
-- alert evaluation endpoint
+### Backend
+Files under `backend/tests/` cover API, CRUD edges, helpers, settings, alerts, portfolio alerts, market/provider and calendar.
 
 ### Worker
-- successful market poll flow
-- alert evaluation call
-- failure handling without crashing the worker loop
+`worker/tests/test_main.py` covers successful and failed market polling.
 
 ### Frontend
-- navigation/API/theme smoke markers
-- Next.js production build and TypeScript validation
+Production build is the current compile/type verification. A dedicated browser test suite is still a future improvement.
 
 ### End-to-End
-- backend health
-- frontend HTTP availability
-- create portfolio
-- create watchlist
-- evaluate alerts
-- cleanup created records
+`scripts/test_e2e.sh` checks API/web health, creates temporary portfolio/watchlist records, evaluates alerts and deletes the temporary records.
 
 ## Commands
-
-Backend:
-docker-compose exec -T backend pytest -q
-
-Worker:
-docker-compose exec -T worker pytest -q
-
-Frontend:
-cd frontend && npm run test && npm run build
-
-E2E:
+```bash
+docker-compose exec backend pytest -q
+docker-compose exec worker pytest -q
 ./scripts/test_e2e.sh
+docker-compose build frontend
+```
 
-## Result
-Phase 6 verification passed after fixing test isolation for the global market quote cache. Test data is removed after execution.
+## Test Principles
+- no external provider dependency in unit tests
+- mock provider/network failure paths
+- test alert edge/re-arm behavior
+- test trading calendar boundaries
+- clean up E2E test data
+
+## Current Gap
+CI is not yet configured; local verification is the current gate.

@@ -1,41 +1,53 @@
 # System Architecture
 
 ## Architecture Style
-Use a modular monolith with a dedicated background worker.
+Local-first, service-oriented Docker Compose architecture.
 
-## Flow
-Browser -> Next.js -> FastAPI -> PostgreSQL
-                           |
-                           +-> Background Worker
-                                 |- Market Data
-                                 |- Alert Engine
-                                 |- Scheduler
-                                 |- LINE Notification
+```text
+Browser
+  |
+  v
+Next.js :3000
+  |
+  v
+FastAPI :8000
+  +--------------------+
+  |                    |
+  v                    v
+PostgreSQL :5432   External Providers
+  ^                Yahoo / Frankfurter
+  |
+Worker
+```
 
-## Components
-### Frontend
-Next.js + TypeScript + Tailwind CSS.
+## Services
+| Service | Role | Port |
+|---|---|---|
+| postgres | source of truth | 5432 |
+| backend | REST API, business logic, migrations | 8000 |
+| worker | scheduled quote polling + alert evaluation | internal |
+| frontend | web UI | 3000 |
 
-### Backend
-Python + FastAPI. The API is the application's business boundary.
+## Frontend
+Next.js 15.5.27 + React 19.1.1 + TypeScript 5.9.2.  
+หน้าเดียวสลับ sections: Dashboard, Portfolio, Watchlist, Alert History, Settings, System Status.
 
-### Database
-PostgreSQL stores users, holdings, watchlists, rules, settings, sessions, and history.
+## Backend
+FastAPI 0.117.1, SQLAlchemy 2.0.43, Alembic 1.16.5.  
+API ใช้ demo user resolver ในปัจจุบัน; ยังไม่มี login/session/JWT จริง
 
-### Worker
-Runs scheduled jobs, collects market data, evaluates alerts, sends LINE notifications, and records delivery results.
+## Database
+PostgreSQL 17-alpine. Alembic migration head = `0009_watch_price_alerts`.
 
-### Market Data Adapter
-Hides provider-specific APIs behind a stable internal interface.
+## Worker
+APScheduler interval job เรียก:
+1. `GET /api/v1/market/quotes`
+2. `POST /api/v1/alerts/evaluate`
 
-### Notification Adapter
-Provides LINE delivery without coupling alert logic to LINE implementation details.
+Default polling = 60 seconds (`MARKET_POLL_SECONDS`). `max_instances=1`, `coalesce=True`.
 
-## Docker Services
-- frontend
-- backend
-- worker
-- postgres
+## Market Data
+`market/providers.py` มี provider abstraction และ Yahoo implementation. Quote failure จะพยายามใช้ cached `MarketQuote` ที่มีอยู่แทนการล้มทั้ง response.
 
 ## Important Rule
-The frontend must not call market-data providers directly. All provider access goes through the backend/worker architecture.
+PostgreSQL เป็น source of truth. External providers เป็น upstream data sources ไม่ใช่ฐานข้อมูลหลัก.
