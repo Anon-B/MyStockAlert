@@ -40,3 +40,14 @@ Foundation is implemented with Docker Compose services for PostgreSQL, FastAPI b
     docker-compose down
 
 Execution logs are stored under logs/.
+
+## Phase 1 API
+Database schema is now managed by Alembic migrations in `backend/alembic`.
+
+Core endpoints:
+- `GET/POST/PUT/DELETE /api/v1/portfolio`
+- `GET/POST/PUT/DELETE /api/v1/watchlist`
+- `GET/PUT/DELETE /api/v1/settings/{key}`
+- `GET /api/v1/alerts/history`
+
+The current Phase 1 environment uses a seeded `demo` user until authentication is implemented in Phase 7.

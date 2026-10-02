@@ -1,0 +1,113 @@
+
+[PHASE 1 START] 2026-10-03 00:24:50 +0700
+
+[STEP] Database migration baseline created; init.sql retired as migration source of truth.
+
+[STEP] Compose rebuilt with Alembic migrations.
+=== health ===
+
+=== portfolio empty ===
+
+=== create portfolio ===
+
+=== create watchlist ===
+
+=== settings ===
+
+=== alert history ===
+
+backend-1  |         generate_unique_id_function=current_generate_unique_id,
+backend-1  |     )
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/routing.py", line 561, in __init__
+backend-1  |     self.dependant = get_dependant(path=self.path_format, call=self.endpoint)
+backend-1  |                      ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/dependencies/utils.py", line 300, in get_dependant
+backend-1  |     sub_dependant = get_param_sub_dependant(
+backend-1  |         param_name=param_name,
+backend-1  |     ...<2 lines>...
+backend-1  |         security_scopes=security_scopes,
+backend-1  |     )
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/dependencies/utils.py", line 132, in get_param_sub_dependant
+backend-1  |     return get_sub_dependant(
+backend-1  |         depends=depends,
+backend-1  |     ...<3 lines>...
+backend-1  |         security_scopes=security_scopes,
+backend-1  |     )
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/dependencies/utils.py", line 168, in get_sub_dependant
+backend-1  |     sub_dependant = get_dependant(
+backend-1  |         path=path,
+backend-1  |     ...<3 lines>...
+backend-1  |         use_cache=depends.use_cache,
+backend-1  |     )
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/dependencies/utils.py", line 293, in get_dependant
+backend-1  |     param_details = analyze_param(
+backend-1  |         param_name=param_name,
+backend-1  |     ...<2 lines>...
+backend-1  |         is_path_param=is_path_param,
+backend-1  |     )
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/dependencies/utils.py", line 496, in analyze_param
+backend-1  |     field = create_model_field(
+backend-1  |         name=param_name,
+backend-1  |     ...<4 lines>...
+backend-1  |         field_info=field_info,
+backend-1  |     )
+backend-1  |   File "/usr/local/lib/python3.13/site-packages/fastapi/utils.py", line 98, in create_model_field
+backend-1  |     raise fastapi.exceptions.FastAPIError(
+backend-1  |     ...<7 lines>...
+backend-1  |     ) from None
+backend-1  | fastapi.exceptions.FastAPIError: Invalid args for response field! Hint: check that <class 'sqlalchemy.orm.session.Session'> is a valid Pydantic field type. If you are using a return type annotation that is not a valid Pydantic field (e.g. Union[Response, dict, None]) you can disable generating the response model from the type annotation with the path operation decorator parameter response_model=None. Read more: https://fastapi.tiangolo.com/tutorial/response-model/
+
+[FIX] Normalized DATABASE_URL to psycopg driver.
+backend-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+backend-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+backend-1  | INFO:     Started server process [8]
+backend-1  | INFO:     Waiting for application startup.
+backend-1  | INFO:     Application startup complete.
+backend-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+=== PHASE 1 API TEST ===
+{"status":"ok","service":"backend","timestamp":"2026-10-02T17:29:24.222042+00:00"}
+[]
+{"id":"22d6f541-1eab-4987-9e1e-121d83967254","market":"TH","symbol":"PTT","quantity":"100.00000000","average_cost":"30.25000000","currency":"THB","enabled":true,"created_at":"2026-10-02T17:29:24.251069Z","updated_at":"2026-10-02T17:29:24.251069Z"}
+{"id":"eeeb67d3-41b1-40ff-b608-c7262e12459f","market":"US","symbol":"AAPL","enabled":true,"upper_percent":"5.0000","lower_percent":"-3.0000"}
+{"key":"refresh_interval","value":30}
+[{"id":"eeeb67d3-41b1-40ff-b608-c7262e12459f","market":"US","symbol":"AAPL","enabled":true,"upper_percent":"5.0000","lower_percent":"-3.0000"}]
+[{"key":"refresh_interval","value":30}]
+[]
+=== DUPLICATE WATCHLIST EXPECT 409 ===
+409
+{"detail":"watchlist item already exists"}=== MIGRATION STATUS ===
+0001_initial (head)
+=== TABLES ===
+alembic_version
+alert_history
+alert_rules
+market_sessions
+portfolio_holdings
+settings
+users
+watchlist_items
+=== FINAL SERVICES ===
+NAME                      IMAGE                   COMMAND                  SERVICE    CREATED              STATUS                        PORTS
+mystockalert-backend-1    mystockalert-backend    "sh -c 'alembic upgr…"   backend    31 seconds ago       Up 29 seconds                 0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+mystockalert-frontend-1   mystockalert-frontend   "docker-entrypoint.s…"   frontend   About a minute ago   Up About a minute             0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+mystockalert-postgres-1   postgres:17-alpine      "docker-entrypoint.s…"   postgres   About a minute ago   Up About a minute (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+mystockalert-worker-1     mystockalert-worker     "python -m app.main"     worker     About a minute ago   Up About a minute             
+=== GIT STATUS ===
+ M backend/Dockerfile
+ M backend/app/main.py
+ M backend/requirements.txt
+ D database/init.sql
+ M docker-compose.yml
+ M docs/12_IMPLEMENTATION_PLAN.md
+?? backend/alembic.ini
+?? backend/alembic/
+?? backend/app/db.py
+?? backend/app/models.py
+?? backend/app/schemas.py
+?? logs/PHASE_1_20261003.log
+=== API TEST SUMMARY ===
+health=200; portfolio create=201; watchlist create=201; settings upsert=200; duplicate watchlist=409
+=== PHASE 1 COMPLETE ===
+
+[STEP] API cleanup verified: portfolio=204, watchlist=204, setting=204; all test data removed.
+[STEP] Final service/API state verified; migration revision=0001_initial.

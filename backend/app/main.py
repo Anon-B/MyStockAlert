@@ -1,16 +1,122 @@
+import uuid
 from datetime import datetime, timezone
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from sqlalchemy import select, delete
+from sqlalchemy.orm import Session
+from .db import get_db
+from .models import AlertHistory, AlertRule, PortfolioHolding, Setting, User, WatchlistItem
+from .schemas import AlertHistoryOut, PortfolioCreate, PortfolioOut, PortfolioUpdate, SettingIn, SettingOut, WatchlistCreate, WatchlistOut, WatchlistUpdate
 
-app = FastAPI(title="MyStockAlert API", version="0.1.0")
+app = FastAPI(title="MyStockAlert API", version="0.2.0")
+
+
+def current_user(db: Session = Depends(get_db)) -> User:
+    user = db.scalar(select(User).where(User.username == "demo"))
+    if not user:
+        raise HTTPException(status_code=503, detail="demo user is not initialized")
+    return user
+
+def normalize_market_symbol(market: str, symbol: str) -> tuple[str, str]:
+    market = market.strip().upper()
+    symbol = symbol.strip().upper()
+    if market not in {"TH", "US"}:
+        raise HTTPException(422, "market must be TH or US")
+    if not symbol:
+        raise HTTPException(422, "symbol is required")
+    return market, symbol
 
 @app.get("/health")
 def health() -> dict:
-    return {
-        "status": "ok",
-        "service": "backend",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    return {"status":"ok","service":"backend","timestamp":datetime.now(timezone.utc).isoformat()}
 
 @app.get("/api/v1/health")
 def api_health() -> dict:
-    return {"status": "ok", "service": "backend"}
+    return {"status":"ok","service":"backend"}
+
+@app.get("/api/v1/portfolio", response_model=list[PortfolioOut])
+def list_portfolio(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    return db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id).order_by(PortfolioHolding.market, PortfolioHolding.symbol)).all()
+
+@app.post("/api/v1/portfolio", response_model=PortfolioOut, status_code=status.HTTP_201_CREATED)
+def create_portfolio(payload: PortfolioCreate, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    market, symbol = normalize_market_symbol(payload.market, payload.symbol)
+    row = PortfolioHolding(user_id=user.id, market=market, symbol=symbol, quantity=payload.quantity, average_cost=payload.average_cost, currency=payload.currency.upper(), enabled=payload.enabled)
+    db.add(row); db.commit(); db.refresh(row)
+    return row
+
+@app.put("/api/v1/portfolio/{item_id}", response_model=PortfolioOut)
+def update_portfolio(item_id: uuid.UUID, payload: PortfolioUpdate, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    row = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
+    if not row: raise HTTPException(404, "portfolio holding not found")
+    market, symbol = normalize_market_symbol(payload.market, payload.symbol)
+    for k,v in {"market":market,"symbol":symbol,"quantity":payload.quantity,"average_cost":payload.average_cost,"currency":payload.currency.upper(),"enabled":payload.enabled}.items(): setattr(row,k,v)
+    db.commit(); db.refresh(row); return row
+
+@app.delete("/api/v1/portfolio/{item_id}", status_code=204)
+def delete_portfolio(item_id: uuid.UUID, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    row = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
+    if not row: raise HTTPException(404, "portfolio holding not found")
+    db.delete(row); db.commit()
+
+@app.get("/api/v1/watchlist", response_model=list[WatchlistOut])
+def list_watchlist(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    rows = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id==user.id).order_by(WatchlistItem.market, WatchlistItem.symbol)).all()
+    result=[]
+    for row in rows:
+        rule=db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id==row.id))
+        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None})
+    return result
+
+@app.post("/api/v1/watchlist", response_model=WatchlistOut, status_code=201)
+def create_watchlist(payload: WatchlistCreate, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    market,symbol=normalize_market_symbol(payload.market,payload.symbol)
+    exists=db.scalar(select(WatchlistItem).where(WatchlistItem.user_id==user.id,WatchlistItem.market==market,WatchlistItem.symbol==symbol))
+    if exists: raise HTTPException(409,"watchlist item already exists")
+    row=WatchlistItem(user_id=user.id,market=market,symbol=symbol,enabled=payload.enabled); db.add(row); db.flush()
+    rule=AlertRule(watchlist_item_id=row.id,upper_percent=payload.upper_percent,lower_percent=payload.lower_percent,enabled=True); db.add(rule)
+    db.commit(); db.refresh(row)
+    return {"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent,"lower_percent":rule.lower_percent}
+
+@app.put("/api/v1/watchlist/{item_id}", response_model=WatchlistOut)
+def update_watchlist(item_id: uuid.UUID,payload: WatchlistUpdate,db: Session=Depends(get_db),user: User=Depends(current_user)):
+    row=db.scalar(select(WatchlistItem).where(WatchlistItem.id==item_id,WatchlistItem.user_id==user.id))
+    if not row: raise HTTPException(404,"watchlist item not found")
+    market,symbol=normalize_market_symbol(payload.market,payload.symbol)
+    duplicate=db.scalar(select(WatchlistItem).where(WatchlistItem.user_id==user.id,WatchlistItem.market==market,WatchlistItem.symbol==symbol,WatchlistItem.id!=item_id))
+    if duplicate: raise HTTPException(409,"watchlist item already exists")
+    row.market,row.symbol,row.enabled=market,symbol,payload.enabled
+    rule=db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id==row.id))
+    if not rule: rule=AlertRule(watchlist_item_id=row.id); db.add(rule)
+    rule.upper_percent,rule.lower_percent=payload.upper_percent,payload.lower_percent
+    db.commit(); db.refresh(row)
+    return {"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent,"lower_percent":rule.lower_percent}
+
+@app.delete("/api/v1/watchlist/{item_id}",status_code=204)
+def delete_watchlist(item_id: uuid.UUID,db: Session=Depends(get_db),user: User=Depends(current_user)):
+    row=db.scalar(select(WatchlistItem).where(WatchlistItem.id==item_id,WatchlistItem.user_id==user.id))
+    if not row: raise HTTPException(404,"watchlist item not found")
+    db.delete(row); db.commit()
+
+@app.get("/api/v1/settings",response_model=list[SettingOut])
+def list_settings(db: Session=Depends(get_db),user: User=Depends(current_user)):
+    rows=db.scalars(select(Setting).where(Setting.user_id==user.id).order_by(Setting.key)).all()
+    return [{"key":r.key,"value":r.value_encrypted_or_json} for r in rows]
+
+@app.put("/api/v1/settings/{key}",response_model=SettingOut)
+def upsert_setting(key: str,payload: SettingIn,db: Session=Depends(get_db),user: User=Depends(current_user)):
+    key=key.strip()
+    if not key or len(key)>100: raise HTTPException(422,"invalid setting key")
+    row=db.scalar(select(Setting).where(Setting.user_id==user.id,Setting.key==key))
+    if not row: row=Setting(user_id=user.id,key=key); db.add(row)
+    row.value_encrypted_or_json=payload.value; db.commit(); db.refresh(row)
+    return {"key":row.key,"value":row.value_encrypted_or_json}
+
+@app.get("/api/v1/alerts/history",response_model=list[AlertHistoryOut])
+def alert_history(limit:int=Query(50,ge=1,le=200),db: Session=Depends(get_db),user: User=Depends(current_user)):
+    return db.scalars(select(AlertHistory).where(AlertHistory.user_id==user.id).order_by(AlertHistory.sent_at.desc().nullslast()).limit(limit)).all()
+
+@app.delete("/api/v1/settings/{key}", status_code=204)
+def delete_setting(key: str, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    row = db.scalar(select(Setting).where(Setting.user_id==user.id, Setting.key==key.strip()))
+    if not row: raise HTTPException(404, "setting not found")
+    db.delete(row); db.commit()

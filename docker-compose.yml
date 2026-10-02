@@ -9,7 +9,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mystockalert} -d ${POSTGRES_DB:-mystockalert}"]
       interval: 5s
@@ -21,6 +20,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://mystockalert:change-me@postgres:5432/mystockalert}
       APP_SECRET: ${APP_SECRET:-change-me}
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     ports:
       - "8000:8000"
     depends_on:

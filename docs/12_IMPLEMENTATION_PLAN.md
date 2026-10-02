@@ -10,12 +10,13 @@
 - [x] Worker skeleton
 - [x] Health checks
 
-## Phase 1 - Database and Core API
-- Database migrations
-- Portfolio CRUD
-- Watchlist CRUD
-- Settings
-- Alert history
+## Phase 1 - Database and Core API — COMPLETED
+- [x] Database migrations (Alembic)
+- [x] Portfolio CRUD
+- [x] Watchlist CRUD + threshold configuration
+- [x] Settings API
+- [x] Alert history API
+- [x] API validation and duplicate handling
 
 ## Phase 2 - Web UI
 - Dashboard
