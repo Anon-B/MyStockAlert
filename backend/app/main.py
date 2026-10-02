@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 from .db import get_db
@@ -13,6 +14,7 @@ from .schemas import MarketStatusOut, QuoteOut
 from .schemas import AlertHistoryOut, PortfolioCreate, PortfolioOut, PortfolioUpdate, SettingIn, SettingOut, WatchlistCreate, WatchlistOut, WatchlistUpdate
 
 app = FastAPI(title="MyStockAlert API", version="0.2.0")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 
 
 def current_user(db: Session = Depends(get_db)) -> User:
@@ -118,7 +120,7 @@ def upsert_setting(key: str,payload: SettingIn,db: Session=Depends(get_db),user:
 
 @app.get("/api/v1/alerts/history",response_model=list[AlertHistoryOut])
 def alert_history(limit:int=Query(50,ge=1,le=200),db: Session=Depends(get_db),user: User=Depends(current_user)):
-    return db.scalars(select(AlertHistory).where(AlertHistory.user_id==user.id).order_by(AlertHistory.sent_at.desc().nullslast()).limit(limit)).all()
+    return db.scalars(select(AlertHistory).where(AlertHistory.user_id==user.id).order_by(AlertHistory.triggered_at.desc()).limit(limit)).all()
 
 @app.delete("/api/v1/settings/{key}", status_code=204)
 def delete_setting(key: str, db: Session=Depends(get_db), user: User=Depends(current_user)):
