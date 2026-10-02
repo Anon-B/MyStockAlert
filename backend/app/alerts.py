@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from .models import AlertHistory, AlertRule, MarketQuote, PortfolioHolding, User, WatchlistItem
+from .models import AlertHistory, AlertOutbox, AlertRule, MarketQuote, PortfolioHolding, User, WatchlistItem
 from .market.calendar import market_status
 
 
@@ -30,10 +30,13 @@ def evaluate_watchlist(db: Session, user: User, now: datetime | None = None) -> 
         if not alert_type:
             continue
         rule.last_triggered_at = now
+        key = f"watch:{user.id}:{item.id}:{alert_type}:{now.date()}:{now.hour}:{now.minute}"
         row = AlertHistory(user_id=user.id, symbol=item.symbol, market=item.market, alert_type=alert_type,
             reference_price=None, trigger_price=quote.price, change_percent=change,
-            message=f"{item.market} {item.symbol} threshold {change:.2f}%", sent_at=now, status="pending")
-        db.add(row)
+            message=f"{item.market} {item.symbol} threshold {change:.2f}%", triggered_at=now,
+            idempotency_key=key, status="pending")
+        db.add(row); db.flush()
+        db.add(AlertOutbox(alert_history_id=row.id, channel="line"))
         created.append(row)
     return created
 
@@ -58,7 +61,7 @@ def evaluate_portfolio_session(db: Session, user: User, now: datetime | None = N
             AlertHistory.user_id == user.id,
             AlertHistory.market == market,
             AlertHistory.alert_type == alert_type,
-            AlertHistory.sent_at >= datetime.combine(local.date(), datetime.min.time(), tzinfo=local.tzinfo)))
+            AlertHistory.triggered_at >= datetime.combine(local.date(), datetime.min.time(), tzinfo=local.tzinfo)))
         if existing:
             continue
         for holding in [x for x in holdings if x.market == market]:
@@ -66,10 +69,13 @@ def evaluate_portfolio_session(db: Session, user: User, now: datetime | None = N
             if not quote:
                 continue
             change = ((Decimal(str(quote.price)) / Decimal(str(holding.average_cost))) - Decimal("1")) * Decimal("100")
+            key = f"portfolio:{user.id}:{market}:{alert_type}:{local.date()}"
             row = AlertHistory(user_id=user.id, symbol=holding.symbol, market=market, alert_type=alert_type,
                 reference_price=holding.average_cost, trigger_price=quote.price, change_percent=change,
-                message=f"{market} {holding.symbol} portfolio {alert_type} P/L {change:.2f}%", sent_at=now, status="pending")
-            db.add(row); created.append(row)
+                message=f"{market} {holding.symbol} portfolio {alert_type} P/L {change:.2f}%", triggered_at=now,
+                idempotency_key=f"{key}:{holding.symbol}", status="pending")
+            db.add(row); db.flush()
+            db.add(AlertOutbox(alert_history_id=row.id, channel="line")); created.append(row)
     return created
 
 

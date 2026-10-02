@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
@@ -61,8 +61,25 @@ class AlertHistory(Base):
     trigger_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
     change_percent: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
     message: Mapped[str | None] = mapped_column(Text)
+    triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+
+class AlertOutbox(Base):
+    __tablename__ = "alert_outbox"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    alert_history_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("alert_history.id", ondelete="CASCADE"), unique=True, nullable=False)
+    channel: Mapped[str] = mapped_column(String(32), default="line", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class Setting(Base):
     __tablename__ = "settings"
@@ -75,7 +92,7 @@ class Setting(Base):
 
 class MarketQuote(Base):
     __tablename__ = "market_quotes"
-    __table_args__ = (UniqueConstraint("market", "symbol"),)
+    __table_args__ = (UniqueConstraint("market", "symbol"), Index("ix_market_quotes_market_symbol_updated", "market", "symbol", "updated_at"))
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)

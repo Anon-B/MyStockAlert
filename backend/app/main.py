@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query, status
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 from .db import get_db
-from .models import AlertHistory, AlertRule, PortfolioHolding, Setting, User, WatchlistItem
+from .models import AlertHistory, AlertOutbox, AlertRule, PortfolioHolding, Setting, User, WatchlistItem
 from .models import MarketQuote
 from .market.calendar import market_status
 from .market.providers import YahooProvider
@@ -127,9 +127,52 @@ def delete_setting(key: str, db: Session=Depends(get_db), user: User=Depends(cur
     db.delete(row); db.commit()
 
 
+@app.get("/api/v1/system/status")
+def system_status(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    db_ok = True
+    try:
+        db.execute(select(func.count(User.id))).scalar_one()
+    except Exception:
+        db_ok = False
+    quote_count = db.scalar(select(func.count(MarketQuote.id))) or 0
+    pending = db.scalar(select(func.count(AlertOutbox.id)).where(AlertOutbox.status == "pending")) or 0
+    return {"status": "ok" if db_ok else "degraded", "database": db_ok, "quote_cache": quote_count, "pending_deliveries": pending, "version": app.version}
+
+@app.get("/api/v1/portfolio/summary")
+def portfolio_summary(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True))).all()
+    quotes = db.scalars(select(MarketQuote)).all()
+    qmap = {(q.market,q.symbol): q for q in quotes}
+    totals = {"THB": {"cost_basis": 0.0, "current_value": 0.0, "pnl": 0.0}, "USD": {"cost_basis": 0.0, "current_value": 0.0, "pnl": 0.0}}
+    rows = []
+    for h in holdings:
+        cost = float(h.quantity * h.average_cost)
+        q = qmap.get((h.market,h.symbol))
+        current = float(h.quantity * q.price) if q else None
+        pnl = current - cost if current is not None else None
+        currency = h.currency
+        totals[currency]["cost_basis"] += cost
+        if current is not None:
+            totals[currency]["current_value"] += current; totals[currency]["pnl"] += pnl
+        rows.append({"id": str(h.id), "market": h.market, "symbol": h.symbol, "currency": currency, "cost_basis": cost, "current_value": current, "pnl": pnl, "pnl_percent": (pnl/cost*100 if pnl is not None and cost else None), "stale": bool(q and (datetime.now(timezone.utc)-q.quoted_at).total_seconds()>300)})
+    return {"rows": rows, "totals": totals}
+
 @app.get("/api/v1/market/status", response_model=list[MarketStatusOut])
 def market_status_api():
     return [market_status("TH"), market_status("US")]
+
+@app.get("/api/v1/market/providers/health")
+async def provider_health():
+    provider = YahooProvider(timeout=3.0, retries=0)
+    results = []
+    for market, symbol in (("US", "AAPL"), ("TH", "PTT")):
+        started = datetime.now(timezone.utc)
+        try:
+            await provider.quote(market, symbol)
+            results.append({"market": market, "provider": "yahoo", "ok": True, "latency_ms": round((datetime.now(timezone.utc)-started).total_seconds()*1000, 1)})
+        except Exception as exc:
+            results.append({"market": market, "provider": "yahoo", "ok": False, "latency_ms": round((datetime.now(timezone.utc)-started).total_seconds()*1000, 1), "error": str(exc)})
+    return results
 
 @app.get("/api/v1/market/quotes", response_model=list[QuoteOut])
 async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_user)):

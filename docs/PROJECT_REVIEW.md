@@ -65,3 +65,18 @@ Add coverage thresholds, mutation/property tests for threshold logic, contract t
 7. Observability + security hardening
 8. Browser E2E and load/concurrency testing
 9. Backup/restore and release checklist
+
+
+## 2026-10-03 Hardening update
+
+Items 2–8 from the gap list have now been implemented and exercised against the real Docker/PostgreSQL runtime. Frontend CRUD is exposed, 2026 TH/US calendars and US early closes are modeled, Yahoo retry/timeout/provider health were added, portfolio summary/P&L is available, alert delivery uses a durable outbox with idempotency and delivery-state fields, Settings is typed in the UI, and database indexes/constraints/update triggers were added.
+
+The LINE channel is still intentionally skipped. The two generated alerts from the live mock run remain in the database so they can be inspected from Alert History and the outbox table.
+
+Current visible mock records:
+- Portfolio: TST2601003 (TH), US2601003 (US)
+- Watchlist: WT2601003 (TH)
+- Alerts: watchlist_upper and portfolio_open_US
+- Outbox: 2 pending LINE delivery records
+
+Do not use cleanup commands for these records unless explicitly requested.

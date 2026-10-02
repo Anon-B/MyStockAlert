@@ -62,7 +62,11 @@ class AlertHistoryOut(ORMModel):
     trigger_price: Decimal | None
     change_percent: Decimal | None
     message: str | None
+    triggered_at: datetime
     sent_at: datetime | None
+    delivered_at: datetime | None
+    retry_count: int
+    last_error: str | None
     status: str
 
 class QuoteOut(BaseModel):
