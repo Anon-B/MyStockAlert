@@ -13,18 +13,27 @@ def evaluate_watchlist(db: Session, user: User, now: datetime | None = None) -> 
     for item in rows:
         rule = db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id == item.id, AlertRule.enabled.is_(True)))
         quote = db.scalar(select(MarketQuote).where(MarketQuote.market == item.market, MarketQuote.symbol == item.symbol))
-        if not rule or not quote or quote.change_percent is None:
+        if not rule or not quote:
             continue
-        change = Decimal(str(quote.change_percent))
-        if rule.upper_percent is not None and not rule.upper_armed and change < rule.upper_percent:
+        change = Decimal(str(quote.change_percent)) if quote.change_percent is not None else None
+        price = Decimal(str(quote.price))
+        upper_hit = rule.upper_price is not None and rule.upper_armed and price >= rule.upper_price
+        lower_hit = rule.lower_price is not None and rule.lower_armed and price <= rule.lower_price
+        if change is None and rule.upper_percent is None and rule.lower_percent is None and not upper_hit and not lower_hit:
+            continue
+        if rule.upper_price is not None and not rule.upper_armed and price < rule.upper_price:
             rule.upper_armed = True
-        if rule.lower_percent is not None and not rule.lower_armed and change > rule.lower_percent:
+        if rule.lower_price is not None and not rule.lower_armed and price > rule.lower_price:
+            rule.lower_armed = True
+        if rule.upper_percent is not None and not rule.upper_armed and change is not None and change < rule.upper_percent:
+            rule.upper_armed = True
+        if rule.lower_percent is not None and not rule.lower_armed and change is not None and change > rule.lower_percent:
             rule.lower_armed = True
         alert_type = None
-        if rule.upper_percent is not None and rule.upper_armed and change >= rule.upper_percent:
+        if upper_hit or (rule.upper_percent is not None and rule.upper_armed and change is not None and change >= rule.upper_percent):
             alert_type = "watchlist_upper"
             rule.upper_armed = False
-        elif rule.lower_percent is not None and rule.lower_armed and change <= rule.lower_percent:
+        elif lower_hit or (rule.lower_percent is not None and rule.lower_armed and change is not None and change <= rule.lower_percent):
             alert_type = "watchlist_lower"
             rule.lower_armed = False
         if not alert_type:
@@ -33,7 +42,7 @@ def evaluate_watchlist(db: Session, user: User, now: datetime | None = None) -> 
         key = f"watch:{user.id}:{item.id}:{alert_type}:{now.date()}:{now.hour}:{now.minute}"
         row = AlertHistory(user_id=user.id, symbol=item.symbol, market=item.market, alert_type=alert_type,
             reference_price=None, trigger_price=quote.price, change_percent=change,
-            message=f"{item.market} {item.symbol} threshold {change:.2f}%", triggered_at=now,
+            message=f"{item.market} {item.symbol} threshold price={price} change={change:.2f}%" if change is not None else f"{item.market} {item.symbol} price={price}", triggered_at=now,
             idempotency_key=key, status="pending")
         db.add(row); db.flush()
         db.add(AlertOutbox(alert_history_id=row.id, channel="line"))

@@ -27,6 +27,29 @@ class PortfolioHolding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+class PortfolioTransaction(Base):
+    __tablename__ = "portfolio_transactions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    holding_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("portfolio_holdings.id", ondelete="CASCADE"), nullable=False)
+    side: Mapped[str] = mapped_column(String(4), nullable=False)
+    order_id: Mapped[str | None] = mapped_column(String(100))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    execution_price: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    trading_value: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    commission: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    trading_fee: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    clearing_fee: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    regulatory_fee: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    cat_fee: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    sec_fee: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    taf_fee: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    vat: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0, nullable=False)
+    fx_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
 class WatchlistItem(Base):
     __tablename__ = "watchlist_items"
     __table_args__ = (UniqueConstraint("user_id", "market", "symbol"),)
@@ -43,6 +66,8 @@ class AlertRule(Base):
     watchlist_item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("watchlist_items.id", ondelete="CASCADE"), unique=True, nullable=False)
     upper_percent: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     lower_percent: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    upper_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
+    lower_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     upper_armed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     lower_armed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -88,6 +113,31 @@ class Setting(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     key: Mapped[str] = mapped_column(String(100), nullable=False)
     value_encrypted_or_json: Mapped[dict | list | str | int | float | bool | None] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class FxRate(Base):
+    __tablename__ = "fx_rates"
+    __table_args__ = (UniqueConstraint("base_currency", "quote_currency"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    base_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    quote_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    rate: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    quoted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class StockMaster(Base):
+    __tablename__ = "stock_master"
+    __table_args__ = (UniqueConstraint("market", "symbol"), Index("ix_stock_master_market_symbol", "market", "symbol"))
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market: Mapped[str] = mapped_column(String(10), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    exchange: Mapped[str | None] = mapped_column(String(64))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="yahoo")
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class MarketQuote(Base):

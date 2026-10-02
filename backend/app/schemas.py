@@ -17,6 +17,44 @@ class PortfolioCreate(BaseModel):
 class PortfolioUpdate(PortfolioCreate):
     pass
 
+class PortfolioTransactionCreate(BaseModel):
+    side: str
+    order_id: str | None = None
+    quantity: Decimal = Field(gt=0)
+    execution_price: Decimal = Field(gt=0)
+    commission: Decimal = Field(default=0, ge=0)
+    trading_fee: Decimal = Field(default=0, ge=0)
+    clearing_fee: Decimal = Field(default=0, ge=0)
+    regulatory_fee: Decimal = Field(default=0, ge=0)
+    cat_fee: Decimal = Field(default=0, ge=0)
+    sec_fee: Decimal = Field(default=0, ge=0)
+    taf_fee: Decimal = Field(default=0, ge=0)
+    vat: Decimal = Field(default=0, ge=0)
+    fx_rate: Decimal | None = Field(default=None, gt=0)
+    executed_at: datetime | None = None
+
+class PortfolioTransactionOut(ORMModel):
+    id: uuid.UUID
+    holding_id: uuid.UUID
+    side: str
+    order_id: str | None
+    quantity: Decimal
+    execution_price: Decimal
+    trading_value: Decimal
+    commission: Decimal
+    trading_fee: Decimal
+    clearing_fee: Decimal
+    regulatory_fee: Decimal
+    cat_fee: Decimal
+    sec_fee: Decimal
+    taf_fee: Decimal
+    vat: Decimal
+    fx_rate: Decimal | None
+    net_amount: Decimal
+    currency: str
+    executed_at: datetime
+    created_at: datetime
+
 class PortfolioOut(ORMModel):
     id: uuid.UUID
     market: str
@@ -34,6 +72,8 @@ class WatchlistCreate(BaseModel):
     enabled: bool = True
     upper_percent: Decimal | None = Field(default=None, gt=0)
     lower_percent: Decimal | None = Field(default=None, lt=0)
+    upper_price: Decimal | None = Field(default=None, gt=0)
+    lower_price: Decimal | None = Field(default=None, gt=0)
 
 class WatchlistUpdate(WatchlistCreate):
     pass
@@ -45,6 +85,8 @@ class WatchlistOut(ORMModel):
     enabled: bool
     upper_percent: Decimal | None = None
     lower_percent: Decimal | None = None
+    upper_price: Decimal | None = None
+    lower_price: Decimal | None = None
 
 class SettingIn(BaseModel):
     value: object | None = None
@@ -68,6 +110,13 @@ class AlertHistoryOut(ORMModel):
     retry_count: int
     last_error: str | None
     status: str
+
+class StockSearchOut(BaseModel):
+    symbol: str
+    name: str
+    exchange: str | None = None
+    market: str
+    currency: str
 
 class QuoteOut(BaseModel):
     market: str

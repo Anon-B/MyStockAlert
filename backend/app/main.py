@@ -5,13 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 from .db import get_db
-from .models import AlertHistory, AlertOutbox, AlertRule, PortfolioHolding, Setting, User, WatchlistItem
-from .models import MarketQuote
+from .models import AlertHistory, AlertOutbox, AlertRule, PortfolioHolding, PortfolioTransaction, Setting, User, WatchlistItem
+from .models import MarketQuote, StockMaster, FxRate
 from .market.calendar import market_status
-from .market.providers import YahooProvider
+from .market.providers import YahooProvider, search_symbols
 from .alerts import evaluate_alerts
 from .schemas import MarketStatusOut, QuoteOut
-from .schemas import AlertHistoryOut, PortfolioCreate, PortfolioOut, PortfolioUpdate, SettingIn, SettingOut, WatchlistCreate, WatchlistOut, WatchlistUpdate
+from .schemas import AlertHistoryOut, PortfolioCreate, PortfolioOut, PortfolioUpdate, PortfolioTransactionCreate, PortfolioTransactionOut, SettingIn, SettingOut, WatchlistCreate, WatchlistOut, WatchlistUpdate
 
 app = FastAPI(title="MyStockAlert API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
@@ -51,6 +51,36 @@ def create_portfolio(payload: PortfolioCreate, db: Session=Depends(get_db), user
     db.add(row); db.commit(); db.refresh(row)
     return row
 
+@app.get("/api/v1/portfolio/{item_id}/transactions", response_model=list[PortfolioTransactionOut])
+def list_portfolio_transactions(item_id: uuid.UUID, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    holding = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
+    if not holding:
+        raise HTTPException(404, "portfolio holding not found")
+    return db.scalars(select(PortfolioTransaction).where(PortfolioTransaction.holding_id==item_id).order_by(PortfolioTransaction.executed_at.desc())).all()
+
+@app.post("/api/v1/portfolio/{item_id}/transactions", response_model=PortfolioTransactionOut, status_code=201)
+def create_portfolio_transaction(item_id: uuid.UUID, payload: PortfolioTransactionCreate, db: Session=Depends(get_db), user: User=Depends(current_user)):
+    holding = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
+    if not holding:
+        raise HTTPException(404, "portfolio holding not found")
+    side = payload.side.strip().upper()
+    if side not in {"BUY", "SELL"}:
+        raise HTTPException(422, "side must be BUY or SELL")
+    trading_value = payload.quantity * payload.execution_price
+    fees = sum((payload.commission, payload.trading_fee, payload.clearing_fee, payload.regulatory_fee, payload.cat_fee, payload.sec_fee, payload.taf_fee, payload.vat), start=payload.quantity * 0)
+    net_amount = trading_value + fees if side == "BUY" else trading_value - fees
+    row = PortfolioTransaction(
+        holding_id=holding.id, side=side, order_id=payload.order_id, quantity=payload.quantity,
+        execution_price=payload.execution_price, trading_value=trading_value,
+        commission=payload.commission, trading_fee=payload.trading_fee,
+        clearing_fee=payload.clearing_fee, regulatory_fee=payload.regulatory_fee,
+        cat_fee=payload.cat_fee, sec_fee=payload.sec_fee, taf_fee=payload.taf_fee,
+        vat=payload.vat, fx_rate=payload.fx_rate, net_amount=net_amount,
+        currency=holding.currency, executed_at=payload.executed_at or datetime.now(timezone.utc)
+    )
+    db.add(row); db.commit(); db.refresh(row)
+    return row
+
 @app.put("/api/v1/portfolio/{item_id}", response_model=PortfolioOut)
 def update_portfolio(item_id: uuid.UUID, payload: PortfolioUpdate, db: Session=Depends(get_db), user: User=Depends(current_user)):
     row = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
@@ -71,7 +101,7 @@ def list_watchlist(db: Session=Depends(get_db), user: User=Depends(current_user)
     result=[]
     for row in rows:
         rule=db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id==row.id))
-        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None})
+        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None,"upper_price":rule.upper_price if rule else None,"lower_price":rule.lower_price if rule else None})
     return result
 
 @app.post("/api/v1/watchlist", response_model=WatchlistOut, status_code=201)
@@ -80,9 +110,9 @@ def create_watchlist(payload: WatchlistCreate, db: Session=Depends(get_db), user
     exists=db.scalar(select(WatchlistItem).where(WatchlistItem.user_id==user.id,WatchlistItem.market==market,WatchlistItem.symbol==symbol))
     if exists: raise HTTPException(409,"watchlist item already exists")
     row=WatchlistItem(user_id=user.id,market=market,symbol=symbol,enabled=payload.enabled); db.add(row); db.flush()
-    rule=AlertRule(watchlist_item_id=row.id,upper_percent=payload.upper_percent,lower_percent=payload.lower_percent,enabled=True); db.add(rule)
+    rule=AlertRule(watchlist_item_id=row.id,upper_percent=payload.upper_percent,lower_percent=payload.lower_percent,upper_price=payload.upper_price,lower_price=payload.lower_price,enabled=True); db.add(rule)
     db.commit(); db.refresh(row)
-    return {"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent,"lower_percent":rule.lower_percent}
+    return {"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent,"lower_percent":rule.lower_percent,"upper_price":rule.upper_price,"lower_price":rule.lower_price}
 
 @app.put("/api/v1/watchlist/{item_id}", response_model=WatchlistOut)
 def update_watchlist(item_id: uuid.UUID,payload: WatchlistUpdate,db: Session=Depends(get_db),user: User=Depends(current_user)):
@@ -95,8 +125,9 @@ def update_watchlist(item_id: uuid.UUID,payload: WatchlistUpdate,db: Session=Dep
     rule=db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id==row.id))
     if not rule: rule=AlertRule(watchlist_item_id=row.id); db.add(rule)
     rule.upper_percent,rule.lower_percent=payload.upper_percent,payload.lower_percent
+    rule.upper_price,rule.lower_price=payload.upper_price,payload.lower_price
     db.commit(); db.refresh(row)
-    return {"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent,"lower_percent":rule.lower_percent}
+    return {"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent,"lower_percent":rule.lower_percent,"upper_price":rule.upper_price,"lower_price":rule.lower_price}
 
 @app.delete("/api/v1/watchlist/{item_id}",status_code=204)
 def delete_watchlist(item_id: uuid.UUID,db: Session=Depends(get_db),user: User=Depends(current_user)):
@@ -158,6 +189,81 @@ def portfolio_summary(db: Session=Depends(get_db), user: User=Depends(current_us
             totals[currency]["current_value"] += current; totals[currency]["pnl"] += pnl
         rows.append({"id": str(h.id), "market": h.market, "symbol": h.symbol, "currency": currency, "cost_basis": cost, "current_value": current, "pnl": pnl, "pnl_percent": (pnl/cost*100 if pnl is not None and cost else None), "stale": bool(q and (datetime.now(timezone.utc)-q.quoted_at).total_seconds()>300)})
     return {"rows": rows, "totals": totals}
+
+@app.get("/api/v1/market/search")
+async def market_search(q: str = Query(..., min_length=1, max_length=80), market: str = Query("TH"), db: Session = Depends(get_db)):
+    market = market.strip().upper()
+    local = db.scalars(select(StockMaster).where(StockMaster.market == market, StockMaster.active.is_(True), (StockMaster.symbol.ilike("%"+q.strip()+"%") | StockMaster.name.ilike("%"+q.strip()+"%"))).order_by(StockMaster.symbol).limit(8)).all()
+    if local:
+        return [{"symbol":x.symbol,"name":x.name,"exchange":x.exchange,"market":x.market,"currency":x.currency} for x in local]
+    try:
+        results = await search_symbols(q, market)
+        for x in results:
+            row = db.scalar(select(StockMaster).where(StockMaster.market==market, StockMaster.symbol==x["symbol"]))
+            if not row:
+                row = StockMaster(market=market, symbol=x["symbol"], name=x["name"], exchange=x.get("exchange"), currency=x["currency"], source="yahoo")
+                db.add(row)
+            else:
+                row.name=x["name"]; row.exchange=x.get("exchange"); row.currency=x["currency"]; row.active=True; row.synced_at=datetime.now(timezone.utc)
+        db.commit()
+        return results
+    except Exception as exc:
+        raise HTTPException(502, f"market search failed: {exc}")
+
+@app.get("/api/v1/market/stocks/status")
+def stock_master_status(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    total = db.scalar(select(func.count(StockMaster.id)).where(StockMaster.active.is_(True))) or 0
+    th = db.scalar(select(func.count(StockMaster.id)).where(StockMaster.active.is_(True), StockMaster.market == "TH")) or 0
+    us = db.scalar(select(func.count(StockMaster.id)).where(StockMaster.active.is_(True), StockMaster.market == "US")) or 0
+    latest = db.scalar(select(func.max(StockMaster.synced_at)).where(StockMaster.active.is_(True)))
+    return {"total": total, "TH": th, "US": us, "last_synced_at": latest}
+
+@app.post("/api/v1/market/stocks/sync")
+async def sync_stock_master(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.scalars(select(StockMaster).where(StockMaster.active.is_(True))).all()
+    tracked = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id)).all() + db.scalars(select(WatchlistItem).where(WatchlistItem.user_id==user.id)).all()
+    keys = {(x.market, x.symbol) for x in rows} | {(x.market, x.symbol) for x in tracked}
+    updated = added = failed = 0
+    for market, symbol in sorted(keys):
+        try:
+            results = await search_symbols(symbol, market, limit=8)
+            match = next((x for x in results if x["symbol"] == symbol), results[0] if results else None)
+            if not match: failed += 1; continue
+            row = db.scalar(select(StockMaster).where(StockMaster.market==market, StockMaster.symbol==symbol))
+            if not row:
+                row = StockMaster(market=market, symbol=symbol, name=match["name"], exchange=match.get("exchange"), currency=match["currency"], source="yahoo")
+                db.add(row); added += 1
+            else:
+                row.name=match["name"]; row.exchange=match.get("exchange"); row.currency=match["currency"]; row.active=True; row.synced_at=datetime.now(timezone.utc); updated += 1
+        except Exception:
+            failed += 1
+    db.commit()
+    return {"status":"ok" if failed == 0 else "partial", "updated":updated, "added":added, "failed":failed, "total":len(keys), "synced_at":datetime.now(timezone.utc).isoformat()}
+
+@app.get("/api/v1/fx/usd-thb")
+async def usd_thb_fx(db: Session = Depends(get_db)):
+    row = db.scalar(select(FxRate).where(FxRate.base_currency=="USD", FxRate.quote_currency=="THB"))
+    if row:
+        age = (datetime.now(timezone.utc)-row.quoted_at).total_seconds()
+        return {"base_currency":"USD","quote_currency":"THB","rate":row.rate,"source":row.source,"quoted_at":row.quoted_at,"stale":age > 86400}
+    raise HTTPException(404, "USD/THB FX rate not available")
+
+@app.post("/api/v1/fx/usd-thb/sync")
+async def sync_usd_thb_fx(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    from .market.providers import fx_rate
+    try:
+        rate, quoted_at, source = await fx_rate("USD", "THB")
+    except Exception as exc:
+        raise HTTPException(502, f"FX provider failed: {exc}")
+    row = db.scalar(select(FxRate).where(FxRate.base_currency=="USD", FxRate.quote_currency=="THB"))
+    if not row:
+        row = FxRate(base_currency="USD", quote_currency="THB", rate=rate, source=source, quoted_at=quoted_at)
+        db.add(row)
+    else:
+        row.rate=rate; row.source=source; row.quoted_at=quoted_at
+    db.commit()
+    db.refresh(row)
+    return {"status":"ok","base_currency":"USD","quote_currency":"THB","rate":row.rate,"source":row.source,"quoted_at":row.quoted_at,"synced_at":datetime.now(timezone.utc)}
 
 @app.get("/api/v1/market/status", response_model=list[MarketStatusOut])
 def market_status_api():
