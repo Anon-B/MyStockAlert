@@ -22,7 +22,7 @@ Infrastructure changes
 - Frontend npm test script added.
 
 Verification
-- Backend pytest: 6 passed, 1 warning.
+- Backend pytest: 27 passed, 1 existing Starlette deprecation warning.
 - Worker pytest: 2 passed.
 - Frontend smoke test: passed.
 - Frontend production build: passed.

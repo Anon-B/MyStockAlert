@@ -27,5 +27,9 @@ def market_status(market: str, now: datetime | None = None) -> dict:
     cfg = MARKETS[market]
     tz = ZoneInfo(cfg["timezone"])
     local = (now or datetime.now(tz)).astimezone(tz)
+    trading_day = is_trading_day(market, local.date())
     bounds = session_bounds(market, local)
-    return {"market": market, "timezone": cfg["timezone"], "trading_day": is_trading_day(market, local.date()), "open": bounds is not None, "local_time": local.isoformat(), "session_open": bounds[0].isoformat() if bounds else None, "session_close": bounds[1].isoformat() if bounds else None}
+    if trading_day and bounds is None:
+        final_open, final_close = cfg["sessions"][-1]
+        bounds = (datetime.combine(local.date(), final_open, tzinfo=tz), datetime.combine(local.date(), final_close, tzinfo=tz))
+    return {"market": market, "timezone": cfg["timezone"], "trading_day": trading_day, "open": session_bounds(market, local) is not None, "local_time": local.isoformat(), "session_open": bounds[0].isoformat() if bounds else None, "session_close": bounds[1].isoformat() if bounds else None}
