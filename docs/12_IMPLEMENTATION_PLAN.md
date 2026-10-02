@@ -27,12 +27,16 @@
 - [x] API integration
 - [x] Responsive layout and UI theme
 
-## Phase 3 - Market Data
-- Provider adapter
-- Thai market integration
-- US market integration
-- Trading calendar
-- Stale-data handling
+## Phase 3 - Market Data — COMPLETED
+- [x] Provider adapter (Yahoo chart API)
+- [x] Thai market symbol mapping (.BK)
+- [x] US market integration
+- [x] Trading calendar/timezone status (TH/US)
+- [x] PostgreSQL market quote cache
+- [x] Stale-data handling (>5 minutes)
+- [x] Market quote API
+- [x] Background worker polling
+- [x] Dashboard/Portfolio current price and P/L display
 
 ## Phase 4 - Alert Engine
 - Portfolio open/close jobs

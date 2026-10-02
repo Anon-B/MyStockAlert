@@ -1,0 +1,37 @@
+# MyStockAlert Phase 3 Execution Log
+Date: 2026-10-03
+
+## Scope
+Market data provider abstraction, TH/US sessions, quote cache, stale handling, worker polling, and UI price/P&L.
+
+## Pre-check
+- Branch: main
+- Project: /Users/anonpond/MyStockAlert
+- Docker Compose command on host: unavailable (docker CLI reported unknown command: compose).
+- Existing Phase 0-2 commits were present and working tree was clean before Phase 3 edits.
+
+## Implementation
+- Added backend/app/market/calendar.py.
+- Added backend/app/market/providers.py with YahooProvider.
+- Added Alembic revision 0002_market_quotes.
+- Added MarketQuote SQLAlchemy model.
+- Added GET /api/v1/market/status.
+- Added GET /api/v1/market/quotes with cache fallback.
+- Added stale flag when quote age exceeds 300 seconds.
+- Added worker polling through backend every 60 seconds by default.
+- Added BACKEND_URL and MARKET_POLL_SECONDS to Docker Compose worker environment.
+- Added frontend quote loading and current price/P/L display.
+
+## Calendar
+- TH timezone: Asia/Bangkok; regular sessions: 10:00-12:30 and 14:30-16:30.
+- US timezone: America/New_York; regular session: 09:30-16:00.
+- Weekends are non-trading days.
+- Exchange holiday feed is intentionally not yet provider-backed.
+
+## Verification
+- Python compileall: PASS (backend/app and worker/app).
+- Frontend npm ci: PASS.
+- Frontend production build: PASS with Next.js 15.5.27.
+- git diff --check: PASS.
+- Direct backend dependency import on host: unavailable because FastAPI is not installed outside Docker.
+- Direct Yahoo network probe did not return before timeout; session was terminated. Live provider availability is therefore not claimed as verified on the host.

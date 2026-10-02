@@ -5,6 +5,10 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 from .db import get_db
 from .models import AlertHistory, AlertRule, PortfolioHolding, Setting, User, WatchlistItem
+from .models import MarketQuote
+from .market.calendar import market_status
+from .market.providers import YahooProvider
+from .schemas import MarketStatusOut, QuoteOut
 from .schemas import AlertHistoryOut, PortfolioCreate, PortfolioOut, PortfolioUpdate, SettingIn, SettingOut, WatchlistCreate, WatchlistOut, WatchlistUpdate
 
 app = FastAPI(title="MyStockAlert API", version="0.2.0")
@@ -120,3 +124,34 @@ def delete_setting(key: str, db: Session=Depends(get_db), user: User=Depends(cur
     row = db.scalar(select(Setting).where(Setting.user_id==user.id, Setting.key==key.strip()))
     if not row: raise HTTPException(404, "setting not found")
     db.delete(row); db.commit()
+
+
+@app.get("/api/v1/market/status", response_model=list[MarketStatusOut])
+def market_status_api():
+    return [market_status("TH"), market_status("US")]
+
+@app.get("/api/v1/market/quotes", response_model=list[QuoteOut])
+async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True))).all()
+    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id==user.id, WatchlistItem.enabled.is_(True))).all()
+    symbols = {(x.market, x.symbol) for x in [*holdings, *watches]}
+    provider = YahooProvider()
+    now = datetime.now(timezone.utc)
+    output=[]
+    for market, symbol in sorted(symbols):
+        try:
+            q = await provider.quote(market, symbol)
+            row = db.scalar(select(MarketQuote).where(MarketQuote.market==market, MarketQuote.symbol==symbol))
+            if not row:
+                row = MarketQuote(market=market, symbol=symbol)
+                db.add(row)
+            row.price=q.price; row.currency=q.currency; row.change_percent=q.change_percent
+            row.source=q.source; row.quoted_at=q.timestamp
+            db.commit(); db.refresh(row)
+        except Exception:
+            row = db.scalar(select(MarketQuote).where(MarketQuote.market==market, MarketQuote.symbol==symbol))
+            if not row:
+                continue
+        age = (now - row.quoted_at).total_seconds()
+        output.append({"market":row.market,"symbol":row.symbol,"price":row.price,"currency":row.currency,"change_percent":row.change_percent,"source":row.source,"quoted_at":row.quoted_at,"stale":age > 300})
+    return output

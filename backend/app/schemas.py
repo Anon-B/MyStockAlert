@@ -64,3 +64,22 @@ class AlertHistoryOut(ORMModel):
     message: str | None
     sent_at: datetime | None
     status: str
+
+class QuoteOut(BaseModel):
+    market: str
+    symbol: str
+    price: Decimal
+    currency: str
+    change_percent: Decimal | None
+    source: str
+    quoted_at: datetime
+    stale: bool
+
+class MarketStatusOut(BaseModel):
+    market: str
+    timezone: str
+    trading_day: bool
+    open: bool
+    local_time: str
+    session_open: str | None
+    session_close: str | None

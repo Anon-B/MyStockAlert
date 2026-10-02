@@ -69,3 +69,16 @@ class Setting(Base):
     key: Mapped[str] = mapped_column(String(100), nullable=False)
     value_encrypted_or_json: Mapped[dict | list | str | int | float | bool | None] = mapped_column(JSONB)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class MarketQuote(Base):
+    __tablename__ = "market_quotes"
+    __table_args__ = (UniqueConstraint("market", "symbol"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market: Mapped[str] = mapped_column(String(10), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    change_percent: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    quoted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
