@@ -15,6 +15,58 @@
 .ms-text-muted { color: var(--ms-text-muted); }
 .ms-text-secondary { color: var(--ms-text-secondary); }
 
+.ms-tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ms-tooltip-trigger {
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--ms-border);
+  border-radius: 999px;
+  background: var(--ms-surface);
+  color: var(--ms-text-muted);
+  font: inherit;
+  font-size: .75rem;
+  line-height: 1;
+  cursor: help;
+}
+
+.ms-tooltip-trigger:focus-visible {
+  outline: 2px solid var(--ms-focus);
+  outline-offset: 2px;
+}
+
+.ms-tooltip-content {
+  position: absolute;
+  z-index: 30;
+  left: 50%;
+  bottom: calc(100% + .5rem);
+  width: min(20rem, 80vw);
+  padding: .55rem .7rem;
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-surface);
+  color: var(--ms-text-primary);
+  box-shadow: var(--ms-shadow-md);
+  font-size: .8rem;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, .25rem);
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.ms-tooltip-wrap:hover .ms-tooltip-content,
+.ms-tooltip-trigger:focus-visible + .ms-tooltip-content {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
 .ms-skeleton {
   display: block;
   border-radius: var(--ms-radius-sm);

@@ -18,7 +18,7 @@ export function StatCard({
   sub,
   tone = "neutral",
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
   sub?: ReactNode;
   tone?: Tone;
@@ -31,6 +31,25 @@ export function StatCard({
       </div>
       {sub && <div className="ms-body-sm ms-text-secondary">{sub}</div>}
     </Card>
+  );
+}
+
+export function Tooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="ms-tooltip-wrap">
+      <button type="button" className="ms-tooltip-trigger" aria-label={label}>
+        ?
+      </button>
+      <span className="ms-tooltip-content" role="tooltip">
+        {children}
+      </span>
+    </span>
   );
 }
 

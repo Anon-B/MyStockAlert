@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { StatCard } from "../components/ui";
+import { Skeleton, StatCard, Tooltip } from "../components/ui";
 
 type Holding = {
   id: string;
@@ -101,6 +101,29 @@ const NAV: { [k: string]: string } = {
   alerts: "การแจ้งเตือน (Alerts)",
   settings: "ตั้งค่า (Settings)",
 };
+
+const GLOSSARY = {
+  pnl: {
+    label: "กำไร/ขาดทุน (P/L)",
+    help: "ผลต่างระหว่างมูลค่าปัจจุบันกับต้นทุนของรายการในพอร์ต ตัวเลขและวิธีคำนวณไม่เปลี่ยนแปลง",
+  },
+  costBasis: {
+    label: "ต้นทุนสะสม (Cost Basis)",
+    help: "ต้นทุนที่ใช้เป็นฐานสำหรับติดตามกำไร/ขาดทุนของพอร์ต",
+  },
+  unrealized: {
+    label: "กำไร/ขาดทุนที่ยังไม่เกิดขึ้นจริง (Unrealized P/L)",
+    help: "กำไรหรือขาดทุนจากราคาปัจจุบันของหุ้นที่ยังไม่ได้ขาย",
+  },
+  realized: {
+    label: "กำไร/ขาดทุนที่เกิดขึ้นแล้ว (Realized P/L)",
+    help: "กำไรหรือขาดทุนจากรายการที่ขายและรับรู้ผลแล้ว",
+  },
+  alert: {
+    label: "เงื่อนไขแจ้งเตือน (Alert Condition)",
+    help: "เงื่อนไขราคาหรือเปอร์เซ็นต์ที่กำหนดไว้เพื่อให้ระบบสร้างการแจ้งเตือน",
+  },
+} as const;
 const toNumber = (v: number | string | null | undefined) => {
   if (v == null || v === "") return null;
   const n = Number(v);
@@ -146,6 +169,24 @@ const transactionStatusLabel = (s: string) => ({
   PENDING: "รอดำเนินการ (PENDING) · รอจับคู่", CANCELLED: "ยกเลิก (CANCELLED)",
   REJECTED: "ไม่รับคำสั่ง (REJECTED)",
 } as Record<string, string>)[s] || s;
+const alertDeliveryHelp = (status: string, message: string | null) => {
+  if (status === "failed") {
+    return {
+      text: message || "การแจ้งเตือนเกิดขึ้น แต่ส่งไม่สำเร็จและอาจทำให้คุณพลาดการติดตามเงื่อนไขนี้",
+      action: "ตรวจสอบการตั้งค่าการแจ้งเตือนและลองใหม่",
+    };
+  }
+  if (status === "delivered") {
+    return {
+      text: message || "เงื่อนไขแจ้งเตือนทำงานและระบบส่งการแจ้งเตือนแล้ว",
+      action: "ตรวจสอบราคาและพอร์ตตามข้อมูลที่ได้รับ",
+    };
+  }
+  return {
+    text: message || "เงื่อนไขแจ้งเตือนทำงานและกำลังรอการส่ง",
+    action: "ติดตามสถานะการส่งจากหน้านี้",
+  };
+};
 const freshnessLabel = (q: Quote | null | undefined) => {
   if (!q) return "ไม่มีข้อมูล";
   if (q.stale) return "ข้อมูลล่าช้า";
@@ -272,7 +313,7 @@ export default function Home() {
           </div>
         </div>
         <nav>
-          {Object.entries(NAV).map(([k, v]) => (
+          {Object.entries(NAV).filter(([k]) => k !== "settings").map(([k, v]) => (
             <button
               key={k}
               className={page === k ? "ms-nav ms-nav-active" : "ms-nav"}
@@ -283,9 +324,19 @@ export default function Home() {
           ))}
         </nav>
         <div className="ms-sidebar-footer">
-          <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
-          {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
-          <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
+          <button
+            className={page === "settings" ? "ms-nav ms-nav-active" : "ms-nav"}
+            onClick={() => setPage("settings")}
+          >
+            {NAV.settings}
+          </button>
+          <div className="ms-sidebar-system-status">
+            <span>
+              <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
+              {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
+            </span>
+            <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
+          </div>
         </div>
       </aside>
       <main className="ms-main">
@@ -342,7 +393,13 @@ export default function Home() {
         </header>
         {error && <div className="ms-banner ms-banner-error">{error}</div>}
         {loading ? (
-          <div className="ms-card ms-card-body">กำลังโหลดข้อมูล...</div>
+          <div className="ms-card ms-card-body" aria-busy="true" aria-label="กำลังโหลดข้อมูล">
+            <Skeleton height={18} width="35%" />
+            <div style={{ height: 12 }} />
+            <Skeleton height={42} width="100%" />
+            <div style={{ height: 12 }} />
+            <Skeleton height={42} width="92%" />
+          </div>
         ) : page === "dashboard" ? (
           <Dashboard
             h={holdings}
@@ -414,9 +471,9 @@ function Card({
   value,
   sub,
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
-  sub?: string;
+  sub?: ReactNode;
 }) {
   return <StatCard label={label} value={value} sub={sub} />;
 }
@@ -450,20 +507,20 @@ function Dashboard({
       <section className="ms-grid ms-grid-4">
         <Card label="หุ้นที่ถืออยู่ (Holdings)" value={String(h.length)} />
         <Card
-          label="มูลค่าพอร์ตหุ้นไทย (TH Portfolio Value)"
+          label={<><span>มูลค่าพอร์ตหุ้นไทย (TH Portfolio Value)</span> <Tooltip label="อธิบายมูลค่าพอร์ตหุ้นไทย">มูลค่าปัจจุบันของหุ้นไทยตามข้อมูลราคาล่าสุดที่ระบบได้รับ</Tooltip></>}
           value={displayMoney(th?.current_value ?? 0, "THB", display, fx)}
           sub={
             th
-              ? `ต้นทุนสะสม (Cost Basis) ${displayMoney(th.cost_basis, "THB", display, fx)} · กำไร/ขาดทุน (P/L) ${displayMoney(th.pnl, "THB", display, fx)} (${pct(thPct)}) · เกิดขึ้นแล้ว (Realized) ${displayMoney(th.realized_pnl ?? 0, "THB", display, fx)} · ยังไม่เกิดขึ้นจริง (Unrealized) ${displayMoney(th.unrealized_pnl ?? 0, "THB", display, fx)}`
+              ? <>{GLOSSARY.costBasis.label} {displayMoney(th.cost_basis, "THB", display, fx)} · {GLOSSARY.pnl.label} {displayMoney(th.pnl, "THB", display, fx)} ({pct(thPct)}) · {GLOSSARY.realized.label} {displayMoney(th.realized_pnl ?? 0, "THB", display, fx)} · {GLOSSARY.unrealized.label} {displayMoney(th.unrealized_pnl ?? 0, "THB", display, fx)}</>
               : "—"
           }
         />
         <Card
-          label="มูลค่าพอร์ตหุ้นสหรัฐ (US Portfolio Value)"
+          label={<><span>มูลค่าพอร์ตหุ้นสหรัฐ (US Portfolio Value)</span> <Tooltip label="อธิบายมูลค่าพอร์ตหุ้นสหรัฐ">มูลค่าปัจจุบันของหุ้นสหรัฐตามข้อมูลราคาล่าสุดที่ระบบได้รับ</Tooltip></>}
           value={displayMoney(us?.current_value ?? 0, "USD", display, fx)}
           sub={
             us
-              ? `ต้นทุนสะสม (Cost Basis) ${displayMoney(us.cost_basis, "USD", display, fx)} · กำไร/ขาดทุน (P/L) ${displayMoney(us.pnl, "USD", display, fx)} (${pct(usPct)}) · เกิดขึ้นแล้ว (Realized) ${displayMoney(us.realized_pnl ?? 0, "USD", display, fx)} · ยังไม่เกิดขึ้นจริง (Unrealized) ${displayMoney(us.unrealized_pnl ?? 0, "USD", display, fx)}`
+              ? <>{GLOSSARY.costBasis.label} {displayMoney(us.cost_basis, "USD", display, fx)} · {GLOSSARY.pnl.label} {displayMoney(us.pnl, "USD", display, fx)} ({pct(usPct)}) · {GLOSSARY.realized.label} {displayMoney(us.realized_pnl ?? 0, "USD", display, fx)} · {GLOSSARY.unrealized.label} {displayMoney(us.unrealized_pnl ?? 0, "USD", display, fx)}</>
               : "—"
           }
         />
@@ -1720,7 +1777,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
           <strong>{rows.filter((x) => x.status === "delivered").length}</strong>
         </span>
         <span>
-          ต้องตรวจสอบ (Review){" "}
+          ส่งไม่สำเร็จ (Failed){" "}
           <strong>{rows.filter((x) => x.status === "failed").length}</strong>
         </span>
       </div>
@@ -1730,7 +1787,10 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
             <tr>
               <th>เวลา (Time)</th>
               <th>หุ้น (Symbol)</th>
-              <th>เงื่อนไขแจ้งเตือน (Alert Condition)</th>
+              <th>
+                <span>{GLOSSARY.alert.label}</span>{" "}
+                <Tooltip label="อธิบายเงื่อนไขแจ้งเตือน">{GLOSSARY.alert.help}</Tooltip>
+              </th>
               <th>ราคา (Price)</th>
               <th>การเปลี่ยนแปลงของราคา (%)</th>
               <th>สถานะการส่ง (Delivery)</th>
@@ -1747,6 +1807,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
                   : x.status === "failed"
                     ? "failed"
                     : "pending";
+              const deliveryHelp = alertDeliveryHelp(x.status, x.message);
               return (
                 <tr key={x.id}>
                   <td>
@@ -1788,14 +1849,8 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
                     <span className={`ms-alert-status ${statusClass}`}>
                       {statusLabel(x.status)}
                     </span>
-                    {x.retry_count > 0 && (
-                      <small className="ms-table-sub">
-                        ลองส่ง {x.retry_count} ครั้ง
-                      </small>
-                    )}
-                    {x.last_error && (
-                      <small className="ms-alert-error">{x.last_error}</small>
-                    )}
+                    <small className="ms-table-sub">{deliveryHelp.text}</small>
+                    <small className="ms-table-sub">ถัดไป: {deliveryHelp.action}</small>
                   </td>
                 </tr>
               );
