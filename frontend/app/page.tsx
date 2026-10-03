@@ -383,7 +383,13 @@ export default function Home() {
         </header>
         {error && <div className="ms-banner ms-banner-error">{error}</div>}
         {loading ? (
-          <div className="ms-card ms-card-body">กำลังโหลดข้อมูล...</div>
+          <div className="ms-card ms-card-body" aria-busy="true" aria-label="กำลังโหลดข้อมูล">
+            <Skeleton height={18} width="35%" />
+            <div style={{ height: 12 }} />
+            <Skeleton height={42} width="100%" />
+            <div style={{ height: 12 }} />
+            <Skeleton height={42} width="92%" />
+          </div>
         ) : page === "dashboard" ? (
           <Dashboard
             h={holdings}
