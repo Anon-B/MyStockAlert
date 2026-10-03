@@ -1761,7 +1761,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
           <strong>{rows.filter((x) => x.status === "delivered").length}</strong>
         </span>
         <span>
-          ต้องตรวจสอบ (Review){" "}
+          ส่งไม่สำเร็จ (Failed){" "}
           <strong>{rows.filter((x) => x.status === "failed").length}</strong>
         </span>
       </div>
@@ -1791,6 +1791,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
                   : x.status === "failed"
                     ? "failed"
                     : "pending";
+              const deliveryHelp = alertDeliveryHelp(x.status, x.message);
               return (
                 <tr key={x.id}>
                   <td>
