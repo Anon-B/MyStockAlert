@@ -42,6 +42,7 @@ class PortfolioTransactionOut(ORMModel):
     holding_id: uuid.UUID
     user_id: uuid.UUID
     idempotency_key: str | None
+    import_external_id: str | None
     side: str
     status: str
     order_id: str | None
@@ -106,6 +107,11 @@ class WatchlistOut(ORMModel):
     lower_percent: Decimal | None = None
     upper_price: Decimal | None = None
     lower_price: Decimal | None = None
+    current_price: Decimal | None = None
+    current_currency: str | None = None
+    current_change_percent: Decimal | None = None
+    quoted_at: datetime | None = None
+    quote_stale: bool = True
 
 class SettingIn(BaseModel):
     value: object | None = None

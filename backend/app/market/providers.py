@@ -43,7 +43,7 @@ class MarketDataProvider:
         raise NotImplementedError
 
 class YahooProvider(MarketDataProvider):
-    base = "https://query1.finance.yahoo.com/v8/finance/chart/"
+    base = "https://query2.finance.yahoo.com/v8/finance/chart/"
 
     def __init__(self, timeout: float = 5.0, retries: int = 2):
         self.timeout = timeout
@@ -55,7 +55,7 @@ class YahooProvider(MarketDataProvider):
         for attempt in range(self.retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    r = await client.get(self.base + ticker, params={"range":"1d", "interval":"1m"})
+                    r = await client.get(self.base + ticker, params={"range":"1d", "interval":"1m"}, headers={"User-Agent":"Mozilla/5.0"})
                     if getattr(r, "status_code", None) == 429:
                         raise httpx.HTTPStatusError("provider rate limited", request=getattr(r, "request", None), response=r)
                     r.raise_for_status()
@@ -64,8 +64,10 @@ class YahooProvider(MarketDataProvider):
                 price = Decimal(str(meta["regularMarketPrice"]))
                 previous = meta.get("previousClose")
                 change = ((price / Decimal(str(previous))) - Decimal("1")) * Decimal("100") if previous else None
+                quote_ts = meta.get("regularMarketTime")
+                timestamp = datetime.fromtimestamp(int(quote_ts), tz=timezone.utc) if quote_ts else datetime.now(timezone.utc)
                 return Quote(market, symbol, price, "THB" if market == "TH" else "USD",
-                    change, datetime.now(timezone.utc), "yahoo")
+                    change, timestamp, "yahoo")
             except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
                 last_error = exc
                 if attempt < self.retries:
@@ -76,10 +78,12 @@ async def fx_rate(base: str = "USD", quote: str = "THB") -> tuple[Decimal, datet
     ticker = f"{base.upper()}{quote.upper()}=X"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(YahooProvider.base + ticker, params={"range":"1d", "interval":"1m"})
+            r = await client.get(YahooProvider.base + ticker, params={"range":"1d", "interval":"1m"}, headers={"User-Agent":"Mozilla/5.0"})
             r.raise_for_status()
             data = r.json()["chart"]["result"][0]["meta"]
-        return Decimal(str(data["regularMarketPrice"])), datetime.now(timezone.utc), "yahoo"
+        quote_ts = data.get("regularMarketTime")
+        timestamp = datetime.fromtimestamp(int(quote_ts), tz=timezone.utc) if quote_ts else datetime.now(timezone.utc)
+        return Decimal(str(data["regularMarketPrice"])), timestamp, "yahoo"
     except (httpx.HTTPError, KeyError, TypeError, ValueError):
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get("https://api.frankfurter.dev/v2/rate/"+base.lower()+"/"+quote.lower())

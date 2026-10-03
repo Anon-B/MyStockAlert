@@ -1,0 +1,125 @@
+{
+  "pages": [
+    {
+      "url": "http://localhost:3000/",
+      "status": 200,
+      "title": "",
+      "headings": [
+        "เข้าสู่ระบบ"
+      ],
+      "links": [],
+      "buttons": [
+        {
+          "text": "เข้าสู่ระบบ",
+          "disabled": false,
+          "type": "submit"
+        },
+        {
+          "text": "ยังไม่มีบัญชี · สร้างบัญชี",
+          "disabled": false,
+          "type": "submit"
+        }
+      ],
+      "inputs": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "name": "",
+          "placeholder": "",
+          "required": false,
+          "aria": null
+        },
+        {
+          "tag": "INPUT",
+          "type": "password",
+          "name": "",
+          "placeholder": "",
+          "required": false,
+          "aria": null
+        }
+      ],
+      "forms": [],
+      "text": "MS\nMyStockAlert\nSecure Portfolio Monitor\nเข้าสู่ระบบ\n\nเข้าสู่ระบบเพื่อดูพอร์ตและการแจ้งเตือนของคุณ\n\nชื่อผู้ใช้รหัสผ่านเข้าสู่ระบบยังไม่มีบัญชี · สร้างบัญชี\nสมัครสมาชิกแบบง่าย ไม่ต้องยืนยันอีเมล"
+    }
+  ],
+  "logs": {
+    "console": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      },
+      {
+        "type": "verbose",
+        "text": "[DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o"
+      }
+    ],
+    "errors": [],
+    "requests": [],
+    "responses": [
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/market/quotes"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/portfolio"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/alerts/history"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/settings"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/watchlist"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/portfolio/summary"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/system/status"
+      },
+      {
+        "status": 401,
+        "url": "http://localhost:8000/api/v1/market/stocks/status"
+      }
+    ]
+  }
+}

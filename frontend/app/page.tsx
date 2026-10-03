@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Skeleton, StatCard, Tooltip } from "../components/ui";
 
 type Holding = {
   id: string;
@@ -20,6 +21,11 @@ type Watch = {
   lower_percent: string | null;
   upper_price: string | null;
   lower_price: string | null;
+  current_price?: string | null;
+  current_currency?: string | null;
+  current_change_percent?: string | null;
+  quoted_at?: string | null;
+  quote_stale?: boolean;
 };
 type Alert = {
   id: string;
@@ -89,42 +95,98 @@ type Summary = {
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" });
 const NAV: { [k: string]: string } = {
-  dashboard: "Dashboard",
-  portfolio: "Portfolio",
-  watchlist: "Watchlist",
-  alerts: "Alerts",
-  settings: "Settings",
+  dashboard: "ภาพรวม (Dashboard)",
+  portfolio: "พอร์ตการลงทุน (Portfolio)",
+  watchlist: "รายการติดตาม (Watchlist)",
+  alerts: "การแจ้งเตือน (Alerts)",
+  settings: "ตั้งค่า (Settings)",
 };
-const pct = (v: number | null | string) =>
-  v == null ? "—" : `${Number(v) >= 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
-const money = (v: number | null, c = "") =>
-  v == null
-    ? "—"
-    : `${c} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const GLOSSARY = {
+  pnl: {
+    label: "กำไร/ขาดทุน (P/L)",
+    help: "ผลต่างระหว่างมูลค่าปัจจุบันกับต้นทุนของรายการในพอร์ต ตัวเลขและวิธีคำนวณไม่เปลี่ยนแปลง",
+  },
+  costBasis: {
+    label: "ต้นทุนสะสม (Cost Basis)",
+    help: "ต้นทุนที่ใช้เป็นฐานสำหรับติดตามกำไร/ขาดทุนของพอร์ต",
+  },
+  unrealized: {
+    label: "กำไร/ขาดทุนที่ยังไม่เกิดขึ้นจริง (Unrealized P/L)",
+    help: "กำไรหรือขาดทุนจากราคาปัจจุบันของหุ้นที่ยังไม่ได้ขาย",
+  },
+  realized: {
+    label: "กำไร/ขาดทุนที่เกิดขึ้นแล้ว (Realized P/L)",
+    help: "กำไรหรือขาดทุนจากรายการที่ขายและรับรู้ผลแล้ว",
+  },
+  alert: {
+    label: "เงื่อนไขแจ้งเตือน (Alert Condition)",
+    help: "เงื่อนไขราคาหรือเปอร์เซ็นต์ที่กำหนดไว้เพื่อให้ระบบสร้างการแจ้งเตือน",
+  },
+} as const;
+const toNumber = (v: number | string | null | undefined) => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const pct = (v: number | null | string) => {
+  const n = toNumber(v);
+  return n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+};
+const money = (v: number | string | null, c = "") => {
+  const n = toNumber(v);
+  if (n == null) return "—";
+  const normalized = Math.abs(n) < 0.000000005 ? 0 : n;
+  return `${c} ${normalized.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const quantity = (v: number | string | null) => {
+  const n = toNumber(v);
+  if (n == null) return "—";
+  const normalized = Math.abs(n) < 0.000000005 ? 0 : n;
+  return normalized.toLocaleString(undefined, { maximumFractionDigits: 8 });
+};
 const alertLabel = (t: string) =>
   (
     ({
-      watchlist_upper: "ถึงเป้าหมายด้านบน",
-      watchlist_lower: "ถึงเป้าหมายด้านล่าง",
-      portfolio_open_TH: "ตลาดไทยเปิด",
-      portfolio_close_TH: "ตลาดไทยปิด",
-      portfolio_open_US: "ตลาดสหรัฐเปิด",
-      portfolio_close_US: "ตลาดสหรัฐปิด",
+      watchlist_upper: "ถึงเป้าหมายด้านบน (Upper Target)",
+      watchlist_lower: "ถึงเป้าหมายด้านล่าง (Lower Target)",
+      portfolio_open_TH: "ตลาดหุ้นไทยเปิด (Market Open)",
+      portfolio_close_TH: "ตลาดหุ้นไทยปิด (Market Close)",
+      portfolio_open_US: "ตลาดหุ้นสหรัฐเปิด (Market Open)",
+      portfolio_close_US: "ตลาดหุ้นสหรัฐปิด (Market Close)",
     }) as any
   )[t] || t;
 const statusLabel = (s: string) =>
   s === "delivered"
-    ? "ส่งแล้ว"
+    ? "ส่งแล้ว (Delivered)"
     : s === "failed"
-      ? "ส่งไม่สำเร็จ"
+      ? "ส่งไม่สำเร็จ (Failed)"
       : s === "retrying"
-        ? "กำลังลองส่งใหม่"
-        : "กำลังส่ง";
+        ? "กำลังส่งอีกครั้ง (Retrying)"
+        : "กำลังส่ง (Pending)";
 const transactionStatusLabel = (s: string) => ({
-  FILLED: "FILLED · จับคู่แล้ว", MATCHED: "FILLED · จับคู่แล้ว",
-  PENDING: "PENDING · รอจับคู่", CANCELLED: "CANCELLED · ยกเลิก",
-  REJECTED: "REJECTED · ไม่รับคำสั่ง",
+  FILLED: "ดำเนินการแล้ว (FILLED) · จับคู่แล้ว", MATCHED: "ดำเนินการแล้ว (FILLED) · จับคู่แล้ว",
+  PENDING: "รอดำเนินการ (PENDING) · รอจับคู่", CANCELLED: "ยกเลิก (CANCELLED)",
+  REJECTED: "ไม่รับคำสั่ง (REJECTED)",
 } as Record<string, string>)[s] || s;
+const alertDeliveryHelp = (status: string, message: string | null) => {
+  if (status === "failed") {
+    return {
+      text: message || "การแจ้งเตือนเกิดขึ้น แต่ส่งไม่สำเร็จและอาจทำให้คุณพลาดการติดตามเงื่อนไขนี้",
+      action: "ตรวจสอบการตั้งค่าการแจ้งเตือนและลองใหม่",
+    };
+  }
+  if (status === "delivered") {
+    return {
+      text: message || "เงื่อนไขแจ้งเตือนทำงานและระบบส่งการแจ้งเตือนแล้ว",
+      action: "ตรวจสอบราคาและพอร์ตตามข้อมูลที่ได้รับ",
+    };
+  }
+  return {
+    text: message || "เงื่อนไขแจ้งเตือนทำงานและกำลังรอการส่ง",
+    action: "ติดตามสถานะการส่งจากหน้านี้",
+  };
+};
 const freshnessLabel = (q: Quote | null | undefined) => {
   if (!q) return "ไม่มีข้อมูล";
   if (q.stale) return "ข้อมูลล่าช้า";
@@ -221,6 +283,9 @@ export default function Home() {
   }
   useEffect(() => {
     load();
+    const onReload = () => load(true);
+    window.addEventListener("mystockalert:reload", onReload);
+    return () => window.removeEventListener("mystockalert:reload", onReload);
   }, []);
   useEffect(() => {
     const value = settings.find((x) => x.key === "refresh_interval")?.value;
@@ -248,7 +313,7 @@ export default function Home() {
           </div>
         </div>
         <nav>
-          {Object.entries(NAV).map(([k, v]) => (
+          {Object.entries(NAV).filter(([k]) => k !== "settings").map(([k, v]) => (
             <button
               key={k}
               className={page === k ? "ms-nav ms-nav-active" : "ms-nav"}
@@ -259,9 +324,19 @@ export default function Home() {
           ))}
         </nav>
         <div className="ms-sidebar-footer">
-          <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
-          {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
-          <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
+          <button
+            className={page === "settings" ? "ms-nav ms-nav-active" : "ms-nav"}
+            onClick={() => setPage("settings")}
+          >
+            {NAV.settings}
+          </button>
+          <div className="ms-sidebar-system-status">
+            <span>
+              <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
+              {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
+            </span>
+            <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
+          </div>
         </div>
       </aside>
       <main className="ms-main">
@@ -286,7 +361,7 @@ export default function Home() {
               onClick={() => setDarkPremium((v) => !v)}
               aria-label="เปลี่ยนธีม"
             >
-              {darkPremium ? "☼ Light Glass" : "◐ Dark Premium"}
+              {darkPremium ? "Light Glass" : "Dark Premium"}
             </button>
             {page === "dashboard" && <FxMini />}
             {page === "dashboard" && (
@@ -318,7 +393,13 @@ export default function Home() {
         </header>
         {error && <div className="ms-banner ms-banner-error">{error}</div>}
         {loading ? (
-          <div className="ms-card ms-card-body">กำลังโหลดข้อมูล...</div>
+          <div className="ms-card ms-card-body" aria-busy="true" aria-label="กำลังโหลดข้อมูล">
+            <Skeleton height={18} width="35%" />
+            <div style={{ height: 12 }} />
+            <Skeleton height={42} width="100%" />
+            <div style={{ height: 12 }} />
+            <Skeleton height={42} width="92%" />
+          </div>
         ) : page === "dashboard" ? (
           <Dashboard
             h={holdings}
@@ -390,17 +471,11 @@ function Card({
   value,
   sub,
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
-  sub?: string;
+  sub?: ReactNode;
 }) {
-  return (
-    <article className="ms-card ms-card-body">
-      <div className="ms-label">{label}</div>
-      <div className="ms-stat-value">{value}</div>
-      {sub && <div className="ms-section-subtitle">{sub}</div>}
-    </article>
-  );
+  return <StatCard label={label} value={value} sub={sub} />;
 }
 function Dashboard({
   h,
@@ -430,31 +505,31 @@ function Dashboard({
     <>
       <DataFreshnessBanner quotes={quotes} />
       <section className="ms-grid ms-grid-4">
-        <Card label="หุ้นใน Portfolio" value={String(h.length)} />
+        <Card label="หุ้นที่ถืออยู่ (Holdings)" value={String(h.length)} />
         <Card
-          label="มูลค่า TH"
+          label={<><span>มูลค่าพอร์ตหุ้นไทย (TH Portfolio Value)</span> <Tooltip label="อธิบายมูลค่าพอร์ตหุ้นไทย">มูลค่าปัจจุบันของหุ้นไทยตามข้อมูลราคาล่าสุดที่ระบบได้รับ</Tooltip></>}
           value={displayMoney(th?.current_value ?? 0, "THB", display, fx)}
           sub={
             th
-              ? `ต้นทุน ${displayMoney(th.cost_basis, "THB", display, fx)} · P/L ${displayMoney(th.pnl, "THB", display, fx)} (${pct(thPct)}) · รับรู้ ${displayMoney(th.realized_pnl ?? 0, "THB", display, fx)} · ยังไม่รับรู้ ${displayMoney(th.unrealized_pnl ?? 0, "THB", display, fx)}`
+              ? <>{GLOSSARY.costBasis.label} {displayMoney(th.cost_basis, "THB", display, fx)} · {GLOSSARY.pnl.label} {displayMoney(th.pnl, "THB", display, fx)} ({pct(thPct)}) · {GLOSSARY.realized.label} {displayMoney(th.realized_pnl ?? 0, "THB", display, fx)} · {GLOSSARY.unrealized.label} {displayMoney(th.unrealized_pnl ?? 0, "THB", display, fx)}</>
               : "—"
           }
         />
         <Card
-          label="มูลค่า US"
+          label={<><span>มูลค่าพอร์ตหุ้นสหรัฐ (US Portfolio Value)</span> <Tooltip label="อธิบายมูลค่าพอร์ตหุ้นสหรัฐ">มูลค่าปัจจุบันของหุ้นสหรัฐตามข้อมูลราคาล่าสุดที่ระบบได้รับ</Tooltip></>}
           value={displayMoney(us?.current_value ?? 0, "USD", display, fx)}
           sub={
             us
-              ? `ต้นทุน ${displayMoney(us.cost_basis, "USD", display, fx)} · P/L ${displayMoney(us.pnl, "USD", display, fx)} (${pct(usPct)}) · รับรู้ ${displayMoney(us.realized_pnl ?? 0, "USD", display, fx)} · ยังไม่รับรู้ ${displayMoney(us.unrealized_pnl ?? 0, "USD", display, fx)}`
+              ? <>{GLOSSARY.costBasis.label} {displayMoney(us.cost_basis, "USD", display, fx)} · {GLOSSARY.pnl.label} {displayMoney(us.pnl, "USD", display, fx)} ({pct(usPct)}) · {GLOSSARY.realized.label} {displayMoney(us.realized_pnl ?? 0, "USD", display, fx)} · {GLOSSARY.unrealized.label} {displayMoney(us.unrealized_pnl ?? 0, "USD", display, fx)}</>
               : "—"
           }
         />
-        <Card label="Alerts" value={String(a.length)} sub="ประวัติทั้งหมด" />
+        <Card label="การแจ้งเตือน (Alerts)" value={String(a.length)} sub="ประวัติทั้งหมด" />
       </section>
       <section className="ms-card ms-dashboard-gap ms-dashboard-portfolio">
         <div className="ms-card-header">
           <div>
-            <h2 className="ms-section-title">Portfolio</h2>
+            <h2 className="ms-section-title">พอร์ตการลงทุน (Portfolio)</h2>
             <p className="ms-section-subtitle">
               มูลค่าพอร์ต · แสดง{" "}
               {display === "native" ? "สกุลเงินของแต่ละตลาด" : display}{" "}
@@ -488,7 +563,7 @@ function Dashboard({
       <section className="ms-card ms-dashboard-gap">
         <div className="ms-card-header">
           <div>
-            <h2 className="ms-section-title">Watchlist</h2>
+            <h2 className="ms-section-title">รายการติดตาม (Watchlist)</h2>
             <p className="ms-section-subtitle">
               รายการที่กำลังติดตามและเงื่อนไขแจ้งเตือน
             </p>
@@ -551,7 +626,7 @@ function StockTable({
         <td>
           <strong>{x.symbol}</strong>
         </td>
-        <td>{x.quantity}</td>
+        <td className="numeric">{quantity(x.quantity)}</td>
         <td>{money(Number(x.average_cost), x.currency)}</td>
         <td>
           {z ? displayMoney(Number(z.price), z.currency, display, fx) : "—"}
@@ -566,14 +641,14 @@ function StockTable({
   });
   return (
     <div className="ms-table-wrap">
-      <table className="ms-table">
+      <table className="ms-table ms-table-stock">
         <thead>
           <tr>
             <th>ตลาด (Market)</th>
             <th>หุ้น (Symbol)</th>
             <th>จำนวน (Qty)</th>
-            <th>ต้นทุนเฉลี่ย (Avg Cost)</th>
-            <th>ราคาปัจจุบัน (Price)</th>
+            <th>ต้นทุนเฉลี่ยต่อหุ้น (Avg Cost)</th>
+            <th>ราคาล่าสุด (Price)</th>
             <th>กำไร/ขาดทุน (P/L)</th>
             <th>สกุลเงิน (Currency)</th>
           </tr>
@@ -610,7 +685,12 @@ function WatchTable({
       {rows.map((x) => {
         const q = quotes?.find(
           (z) => z.market === x.market && z.symbol === x.symbol,
-        );
+        ) ?? (x.current_price != null ? {
+          market: x.market, symbol: x.symbol, price: x.current_price,
+          currency: x.current_currency || (x.market === "US" ? "USD" : "THB"),
+          change_percent: x.current_change_percent ?? null, source: "watchlist",
+          quoted_at: x.quoted_at || new Date().toISOString(), stale: Boolean(x.quote_stale),
+        } as Quote : undefined);
         const rules = [
           x.upper_percent != null ? "↑ " + pct(x.upper_percent) : null,
           x.lower_percent != null ? "↓ " + pct(x.lower_percent) : null,
@@ -626,14 +706,14 @@ function WatchTable({
               </div>
               <div className="ms-watch-price">
                 <strong>{q ? money(Number(q.price), q.currency) : "—"}</strong>
-                <small>ราคาปัจจุบัน</small>
+                <small>ราคาล่าสุด (Current Price)</small>
               </div>
               <div className={q && Number(q.change_percent || 0) >= 0 ? "ms-watch-change ms-positive" : "ms-watch-change ms-negative"}>
                 <strong>{q ? pct(q.change_percent) : "—"}</strong>
               </div>
               <div className="ms-watch-alert">
                 <span>{rules.length ? rules.join("  ") : "—"}</span>
-                <small>Alert</small>
+                <small>เงื่อนไขแจ้งเตือน (Alert)</small>
               </div>
               {editable && (
                 <div className="ms-row-menu ms-watch-item-menu">
@@ -702,10 +782,12 @@ function StockPicker({
   market,
   value,
   onChange,
+  onMarketChange,
 }: {
   market: string;
   value: string;
   onChange: (stock: StockSearch) => void;
+  onMarketChange?: (market: string) => void;
 }) {
   const [q, setQ] = useState(value),
     [results, setResults] = useState<StockSearch[]>([]),
@@ -741,16 +823,27 @@ function StockPicker({
     <div className="ms-stock-picker">
       <label>หุ้น</label>
       <div className="ms-stock-input-wrap">
-        <span>⌕</span>
+        <label className="ms-stock-market-select">
+          <span>ตลาด</span>
+          <select
+            aria-label="เลือกตลาดหุ้น"
+            value={market}
+            onChange={(e) => onMarketChange?.(e.target.value)}
+          >
+            <option value="TH">TH · หุ้นไทย</option>
+            <option value="US">US · หุ้นสหรัฐ</option>
+          </select>
+        </label>
+        <span className="ms-stock-search-icon">⌕</span>
         <input
-          aria-label="ค้นหาหุ้น"
+          aria-label={market === "US" ? "ค้นหาหุ้นสหรัฐ" : "ค้นหาหุ้นไทย"}
           value={q}
           onFocus={() => setOpen(true)}
           onChange={(e) => {
             setQ(e.target.value.toUpperCase());
             setOpen(true);
           }}
-          placeholder="ค้นหาชื่อหุ้นหรือ Symbol"
+          placeholder={market === "US" ? "ค้นหาหุ้นสหรัฐ เช่น AAPL, NVDA, MSFT" : "ค้นหาหุ้นไทย เช่น PTT, AOT, CPALL"}
         />
         {busy && <small>กำลังค้นหา...</small>}
       </div>
@@ -930,7 +1023,7 @@ function Portfolio({
       <div className="ms-card ms-portfolio-toolbar">
         <div className="ms-card-header">
           <div>
-            <h2 className="ms-section-title">Portfolio</h2>
+            <h2 className="ms-section-title">พอร์ตการลงทุน (Portfolio)</h2>
             <p className="ms-section-subtitle">
               ดูสถานะหุ้น และจัดการรายการซื้อขายแยกเป็นรายหุ้น
             </p>
@@ -1016,12 +1109,12 @@ function Portfolio({
               </div>
             </div>
             <div className="ms-table-wrap">
-              <table className="ms-table">
+              <table className="ms-table ms-table-portfolio">
                 <thead>
                   <tr>
-                    <th>หุ้น</th>
+                    <th>หุ้น (Symbol)</th>
                     <th>จำนวน</th>
-                    <th>ราคา</th>
+                    <th>ราคา (Price)</th>
                     <th>มูลค่า</th>
                     <th>P/L</th>
                     <th>%</th>
@@ -1174,10 +1267,10 @@ function Portfolio({
           <div className="ms-detail-summary">
             <div>
               <span>จำนวนปัจจุบัน</span>
-              <strong>{Number(selected.quantity).toLocaleString()}</strong>
+              <strong>{quantity(selected.quantity)}</strong>
             </div>
             <div>
-              <span>ต้นทุนเฉลี่ย</span>
+              <span>ต้นทุนเฉลี่ยต่อหุ้น (Avg Cost)</span>
               <strong>
                 {Number(selected.average_cost) > 0
                   ? displayMoney(Number(selected.average_cost), selected.currency, display, fx)
@@ -1224,16 +1317,18 @@ function Portfolio({
           <div className="ms-trade-form ms-detail-trade">
             <div className="ms-side-toggle">
               <button
+                aria-label="ซื้อ (BUY)"
                 className={tx.side === "BUY" ? "active buy" : ""}
                 onClick={() => setTx({ ...tx, side: "BUY" })}
               >
-                BUY
+                ซื้อ (BUY)
               </button>
               <button
+                aria-label="ขาย (SELL)"
                 className={tx.side === "SELL" ? "active sell" : ""}
                 onClick={() => setTx({ ...tx, side: "SELL" })}
               >
-                SELL
+                ขาย (SELL)
               </button>
             </div>
             <label>
@@ -1245,7 +1340,7 @@ function Portfolio({
               />
             </label>
             <label>
-              {tx.side === "BUY" ? "ราคาที่ซื้อ" : "ราคาที่ขาย"}
+              {tx.side === "BUY" ? "ราคาซื้อ (Execution Price)" : "ราคาขาย (Execution Price)"}
               <input
                 type="number"
                 value={tx.execution_price}
@@ -1268,23 +1363,23 @@ function Portfolio({
               />
             </label>
             <label>
-              Order ID <span className="ms-optional">(ถ้ามี)</span>
+              รหัสคำสั่งซื้อขาย (Order ID) <span className="ms-optional">(ถ้ามี)</span>
               <input
                 value={tx.order_id}
                 onChange={(e) => setTx({ ...tx, order_id: e.target.value })}
               />
             </label>
             <label>
-              สถานะคำสั่ง
+              สถานะรายการ (Order Status)
               <select value={tx.status} onChange={(e) => setTx({ ...tx, status: e.target.value })}>
-                <option value="FILLED">FILLED · จับคู่แล้ว</option>
-                <option value="PENDING">PENDING · รอจับคู่</option>
-                <option value="CANCELLED">CANCELLED · ยกเลิก</option>
+                <option value="FILLED">ดำเนินการแล้ว (FILLED) · จับคู่แล้ว</option>
+                <option value="PENDING">รอดำเนินการ (PENDING) · รอจับคู่</option>
+                <option value="CANCELLED">ยกเลิก (CANCELLED)</option>
               </select>
             </label>
             {selected.currency === "USD" && (
               <label>
-                FX Rate <span className="ms-optional">(THB / USD)</span>
+                อัตราแลกเปลี่ยน (FX Rate) <span className="ms-optional">(THB / USD)</span>
                 <input
                   type="number"
                   step="0.000001"
@@ -1297,7 +1392,7 @@ function Portfolio({
             )}
             <div className="ms-trade-calculated">
               <div>
-                <span>มูลค่า{tx.side === "BUY" ? "ซื้อ" : "ขาย"}</span>
+                <span>มูลค่ารายการ (Trading Value)</span>
                 <strong>
                   {money(
                     (Number(tx.quantity) || 0) *
@@ -1307,11 +1402,11 @@ function Portfolio({
                 </strong>
               </div>
               <div>
-                <span>ค่าธรรมเนียม</span>
+                <span>ค่าธรรมเนียม (Fees)</span>
                 <strong>{money(fees, selected.currency)}</strong>
               </div>
               <div>
-                <span>ยอดสุทธิ</span>
+                <span>ยอดสุทธิ (Net Amount)</span>
                 <strong>
                   {money(
                     (Number(tx.quantity) || 0) *
@@ -1338,30 +1433,30 @@ function Portfolio({
             {showFees && (
               <div className="ms-fee-panel">
                 <div className="ms-fee-title">
-                  ค่าธรรมเนียม / ภาษี{" "}
+                  ค่าธรรมเนียม / ภาษี (Fees / Tax){" "}
                   <span className="ms-optional">(ทั้งหมด Optional)</span>
                 </div>
                 <div className="ms-fee-grid">
                   {[
-                    ["commission", "Commission"],
+                    ["commission", "ค่าคอมมิชชัน (Commission)"],
                     [
                       "trading_fee",
                       selected.market === "TH"
-                        ? "SET Trading Fee"
-                        : "Trading Fee",
+                        ? "ค่าธรรมเนียมการซื้อขาย (SET Trading Fee)"
+                        : "ค่าธรรมเนียมการซื้อขาย (Trading Fee)",
                     ],
                     [
                       "clearing_fee",
                       selected.market === "TH"
-                        ? "TSD Clearing Fee"
-                        : "Clearing Fee",
+                        ? "ค่าธรรมเนียมชำระราคา (TSD Clearing Fee)"
+                        : "ค่าธรรมเนียมชำระราคา (Clearing Fee)",
                     ],
-                    ["regulatory_fee", "Regulatory Fee"],
-                    ["cat_fee", "CAT Fee"],
-                    ["sec_fee", "SEC Fee"],
-                    ["taf_fee", "TAF Fee"],
-                    ["vat", "VAT / Tax"],
-                    ["fx_rate", "FX Rate"],
+                    ["regulatory_fee", "ค่าธรรมเนียมตามกฎระเบียบ (Regulatory Fee)"],
+                    ["cat_fee", "ค่าธรรมเนียม CAT (CAT Fee)"],
+                    ["sec_fee", "ค่าธรรมเนียม SEC (SEC Fee)"],
+                    ["taf_fee", "ค่าธรรมเนียม TAF (TAF Fee)"],
+                    ["vat", "ภาษี / VAT (VAT / Tax)"],
+                    ["fx_rate", "อัตราแลกเปลี่ยน (FX Rate)"],
                   ].map(([k, l]) => (
                     <label key={k}>
                       {l}
@@ -1375,7 +1470,7 @@ function Portfolio({
                   ))}
                 </div>
                 <p className="ms-fee-hint">
-                  ช่องทั้งหมดเป็น Optional · BUY = มูลค่า + ค่าธรรมเนียม · SELL
+                  ช่องทั้งหมดเป็น Optional · ซื้อ (BUY) = มูลค่า + ค่าธรรมเนียม · ขาย (SELL)
                   = มูลค่า − ค่าธรรมเนียม
                 </p>
               </div>
@@ -1392,8 +1487,8 @@ function Portfolio({
                     <span className={`ms-status-badge ms-status-${String(x.status || "FILLED").toLowerCase()}`}>{transactionStatusLabel(x.status || "FILLED")}</span>
                     <span>{String(x.executed_at || "—").slice(0, 10)}</span>
                     <span>
-                      {Number(x.quantity).toLocaleString()} ×{" "}
-                      {Number(x.execution_price).toLocaleString()}
+                      {quantity(x.quantity)} ×{" "}
+                      {money(x.execution_price, selected.currency)}
                     </span>
                     <span>
                       {money(Number(x.net_amount || 0), selected.currency)}
@@ -1405,7 +1500,7 @@ function Portfolio({
             )}
           </div>
           {txs.some((x) => String(x.status).toUpperCase() === "CANCELLED") && (
-            <div className="ms-banner ms-banner-warning">⚠ รายการ CANCELLED จะไม่ถูกนำไปคำนวณ Holdings, Cost Basis หรือ Average Cost</div>
+            <div className="ms-banner ms-banner-warning">⚠ รายการยกเลิก (CANCELLED) จะไม่ถูกนำไปคำนวณจำนวนหุ้นที่ถืออยู่ (Holdings), ต้นทุนสะสม (Cost Basis) หรือต้นทุนเฉลี่ยต่อหุ้น (Average Cost)</div>
           )}
           </div>
         </div>
@@ -1518,7 +1613,7 @@ function Watchlist({
     <section className="ms-card">
       <div className="ms-card-header">
         <div>
-          <h2 className="ms-section-title">Watchlist</h2>
+          <h2 className="ms-section-title">รายการติดตาม (Watchlist)</h2>
           <p className="ms-section-subtitle">
             ติดตามราคาและตั้งแจ้งเตือนแบบเปอร์เซ็นต์หรือราคา
           </p>
@@ -1552,6 +1647,9 @@ function Watchlist({
               value={f.symbol}
               onChange={(x) =>
                 setF({ ...f, symbol: x.symbol, market: x.market })
+              }
+              onMarketChange={(nextMarket) =>
+                setF({ ...f, market: nextMarket, symbol: "" })
               }
             />
             <div className="ms-watch-alert-group">
@@ -1664,7 +1762,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
     <section className="ms-card">
       <div className="ms-card-header">
         <div>
-          <h2 className="ms-section-title">Alerts</h2>
+          <h2 className="ms-section-title">การแจ้งเตือน (Alerts)</h2>
           <p className="ms-section-subtitle">
             ประวัติการแจ้งเตือน พร้อมเวลาส่งและสถานะล่าสุด
           </p>
@@ -1675,24 +1773,27 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
           ทั้งหมด <strong>{rows.length}</strong>
         </span>
         <span>
-          ส่งแล้ว{" "}
+          ส่งแล้ว (Delivered){" "}
           <strong>{rows.filter((x) => x.status === "delivered").length}</strong>
         </span>
         <span>
-          ต้องตรวจสอบ{" "}
+          ส่งไม่สำเร็จ (Failed){" "}
           <strong>{rows.filter((x) => x.status === "failed").length}</strong>
         </span>
       </div>
       <div className="ms-table-wrap">
-        <table className="ms-table">
+        <table className="ms-table ms-table-alerts">
           <thead>
             <tr>
-              <th>เวลา</th>
-              <th>หุ้น</th>
-              <th>เงื่อนไข</th>
-              <th>ราคา</th>
-              <th>เปลี่ยนแปลง</th>
-              <th>การส่ง</th>
+              <th>เวลา (Time)</th>
+              <th>หุ้น (Symbol)</th>
+              <th>
+                <span>{GLOSSARY.alert.label}</span>{" "}
+                <Tooltip label="อธิบายเงื่อนไขแจ้งเตือน">{GLOSSARY.alert.help}</Tooltip>
+              </th>
+              <th>ราคา (Price)</th>
+              <th>การเปลี่ยนแปลงของราคา (%)</th>
+              <th>สถานะการส่ง (Delivery)</th>
             </tr>
           </thead>
           <tbody>
@@ -1706,6 +1807,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
                   : x.status === "failed"
                     ? "failed"
                     : "pending";
+              const deliveryHelp = alertDeliveryHelp(x.status, x.message);
               return (
                 <tr key={x.id}>
                   <td>
@@ -1747,14 +1849,8 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
                     <span className={`ms-alert-status ${statusClass}`}>
                       {statusLabel(x.status)}
                     </span>
-                    {x.retry_count > 0 && (
-                      <small className="ms-table-sub">
-                        ลองส่ง {x.retry_count} ครั้ง
-                      </small>
-                    )}
-                    {x.last_error && (
-                      <small className="ms-alert-error">{x.last_error}</small>
-                    )}
+                    <small className="ms-table-sub">{deliveryHelp.text}</small>
+                    <small className="ms-table-sub">ถัดไป: {deliveryHelp.action}</small>
                   </td>
                 </tr>
               );
@@ -1858,7 +1954,7 @@ function Settings({
       <div className="ms-card ms-settings-card">
         <h2 className="ms-section-title">Settings</h2>
         <div className="ms-settings-group">
-          <h3>🔔 การแจ้งเตือน</h3>
+          <h3>การแจ้งเตือน</h3>
           <label className="ms-setting">
             <span>เปิด/ปิดแจ้งเตือน</span>
             <input
@@ -1893,7 +1989,7 @@ function Settings({
           </label>
         </div>
         <div className="ms-settings-group">
-          <h3>💰 การแสดงผล</h3>
+          <h3>การแสดงผล</h3>
           <label className="ms-setting">
             <span>รีเฟรชข้อมูล</span>
             <select
@@ -1949,7 +2045,7 @@ function Settings({
           </button>
         </div>
         <div className="ms-settings-group">
-          <h3>⚙ ระบบข้อมูล</h3>
+          <h3>ระบบข้อมูล</h3>
           <div className="ms-data-row">
             <span>Stock Master</span>
             <strong>
@@ -1979,8 +2075,84 @@ function Settings({
           </button>
           {syncMessage && <div className="ms-sync-result">{syncMessage}</div>}
         </div>
+        <DataManagement />
       </div>
     </section>
+  );
+}
+
+function DataManagement() {
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  const [preview, setPreview] = useState<any>(null);
+  const [selected, setSelected] = useState<{kind: "portfolio" | "transactions"; file: File} | null>(null);
+  const download = async (path: string, fallback: string) => {
+    setBusy(path); setMessage("");
+    try {
+      const r = await apiFetch(`${API}${path}`);
+      if (!r.ok) throw new Error();
+      const blob = await r.blob(); const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = fallback; a.click(); URL.revokeObjectURL(url);
+      setMessage("✓ ดาวน์โหลดไฟล์เรียบร้อย");
+    } catch { setMessage("⚠ ดาวน์โหลดไม่สำเร็จ"); } finally { setBusy(""); }
+  };
+  const choose = async (kind: "portfolio" | "transactions", file: File | undefined) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".xlsx")) { setMessage("⚠ รองรับเฉพาะไฟล์ .xlsx"); return; }
+    setBusy(`preview-${kind}`); setMessage(""); setPreview(null); setSelected({kind, file});
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await apiFetch(`${API}/api/v1/data/import/${kind}/preview`, {method:"POST", body:fd});
+      const data = await r.json(); if (!r.ok) throw new Error(data.detail || "Preview failed");
+      setPreview(data);
+      setMessage(data.errors?.length ? `⚠ พบข้อผิดพลาด ${data.errors.length} รายการ` : `✓ ตรวจสอบผ่าน ${data.valid || 0} แถว`);
+    } catch (e:any) { setMessage(`⚠ ${e.message || "ตรวจสอบไฟล์ไม่สำเร็จ"}`); setSelected(null); } finally { setBusy(""); }
+  };
+  const commit = async () => {
+    if (!selected || preview?.errors?.length) return;
+    setBusy(`import-${selected.kind}`);
+    try {
+      const fd = new FormData(); fd.append("file", selected.file);
+      const r = await apiFetch(`${API}/api/v1/data/import/${selected.kind}`, {method:"POST", body:fd});
+      const data = await r.json(); if (!r.ok) throw new Error(data.detail || "Import failed");
+      setMessage(`✓ นำเข้าสำเร็จ ${data.imported || 0} รายการ · ข้ามซ้ำ ${data.skipped || 0} · ผิดพลาด ${data.failed || 0}`);
+      setPreview(data); setSelected(null);
+      window.dispatchEvent(new Event("mystockalert:reload"));
+    } catch (e:any) { setMessage(`⚠ ${e.message || "นำเข้าไม่สำเร็จ"}`); } finally { setBusy(""); }
+  };
+  const downloadErrors = () => {
+    if (!preview?.errors?.length) return;
+    const esc=(v:any)=>`"${String(v).replaceAll('"','""')}"`;
+    const csv=["row,message",...preview.errors.map((x:any)=>`${x.row},${esc(x.message)}`)].join("\n");
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}); const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download="MyStockAlert_Import_Errors.csv"; a.click(); URL.revokeObjectURL(url);
+  };
+  return (
+    <div className="ms-settings-group">
+      <h3>Data Management</h3>
+      <p className="ms-muted">ส่งออกข้อมูลเป็น Excel หรือเตรียมไฟล์ Excel เพื่อนำเข้า โดยระบบจะตรวจสอบก่อนบันทึกจริง</p>
+      <div className="ms-data-row"><span>Portfolio</span><div className="ms-button-row">
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/export/portfolio","MyStockAlert_Portfolio.xlsx")} disabled={!!busy}>Export Portfolio</button>
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/portfolio","MyStockAlert_Portfolio_Template.xlsx")} disabled={!!busy}>Portfolio Template</button>
+        <label className="ms-button ms-button-light">Import Portfolio<input hidden type="file" accept=".xlsx" onChange={e=>choose("portfolio",e.target.files?.[0])}/></label>
+      </div></div>
+      <div className="ms-data-row"><span>Transactions</span><div className="ms-button-row">
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/export/transactions","MyStockAlert_Transactions.xlsx")} disabled={!!busy}>Export Transactions</button>
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/transactions","MyStockAlert_Transactions_Template.xlsx")} disabled={!!busy}>Transactions Template</button>
+        <label className="ms-button ms-button-light">Import Transactions<input hidden type="file" accept=".xlsx" onChange={e=>choose("transactions",e.target.files?.[0])}/></label>
+      </div></div>
+      {preview && <div className="ms-import-preview">
+        <strong>Preview · {preview.total || 0} แถว</strong>
+        <span>ผ่าน {preview.valid || 0}</span><span>ผิดพลาด {preview.errors?.length || 0}</span><span>คำเตือน {preview.warnings?.length || 0}</span>
+        {preview.warnings?.slice(0,5).map((x:any,i:number)=><small key={`w${i}`}>⚠ แถว {x.row}: {x.message}</small>)}
+        {preview.errors?.slice(0,8).map((x:any,i:number)=><small key={`e${i}`}>✕ แถว {x.row}: {x.message}</small>)}
+        <div className="ms-button-row">
+          {preview.errors?.length > 0 && <button className="ms-button ms-button-light" onClick={downloadErrors}>ดาวน์โหลด Error Report</button>}
+          {selected && !preview.errors?.length && <button className="ms-button ms-button-primary" onClick={commit} disabled={!!busy}>{busy ? "กำลังนำเข้า..." : "ยืนยัน Import"}</button>}
+        </div>
+      </div>}
+      {message && <div className="ms-sync-result">{message}</div>}
+    </div>
   );
 }
 

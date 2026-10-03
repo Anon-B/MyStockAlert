@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from .market.providers import YahooProvider, search_symbols
 from .alerts import evaluate_alerts
 from .security import hash_password, verify_password, new_session_token, session_expiry, hash_token
 from .finance import FeeBreakdown, calculate_transaction, convert_to_thb
+from .data_io import portfolio_workbook, transaction_workbook, as_bytes, preview_portfolio, preview_transactions, import_portfolio, import_transactions
 import os
 import hmac
 from .schemas import MarketStatusOut, QuoteOut
@@ -119,6 +120,64 @@ def health() -> dict:
 @app.get("/api/v1/health")
 def api_health() -> dict:
     return {"status":"ok","service":"backend"}
+
+@app.get("/api/v1/data/export/portfolio")
+def export_portfolio(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    rows=db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True)).order_by(PortfolioHolding.market,PortfolioHolding.symbol)).all()
+    quotes={ (q.market,q.symbol): q for q in db.scalars(select(MarketQuote).where(MarketQuote.market.in_([x.market for x in rows]) if rows else False)).all() }
+    data_rows=[]
+    for x in rows:
+        q=quotes.get((x.market,x.symbol)); price=Decimal(str(q.price)) if q else None
+        market_value=(Decimal(str(x.quantity))*price) if price is not None else None
+        cost=(Decimal(str(x.quantity))*Decimal(str(x.average_cost)))
+        pnl=(market_value-cost) if market_value is not None else None
+        data_rows.append({"symbol":x.symbol,"market":x.market,"name":"","quantity":x.quantity,"avg_cost":x.average_cost,"currency":x.currency,"current_price":float(price) if price is not None else None,"market_value":float(market_value) if market_value is not None else None,"unrealized_pnl":float(pnl) if pnl is not None else None})
+    data=as_bytes(portfolio_workbook(data_rows))
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition":"attachment; filename=MyStockAlert_Portfolio.xlsx"})
+
+@app.get("/api/v1/data/export/transactions")
+def export_transactions(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    rows=db.scalars(select(PortfolioTransaction).join(PortfolioHolding,PortfolioTransaction.holding_id==PortfolioHolding.id).where(PortfolioTransaction.user_id==user.id).order_by(PortfolioTransaction.executed_at)).all()
+    pairs=[]
+    for x in rows:
+        holding=db.get(PortfolioHolding,x.holding_id)
+        if holding: pairs.append((x,holding))
+    data=as_bytes(transaction_workbook(pairs))
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition":"attachment; filename=MyStockAlert_Transactions.xlsx"})
+
+@app.get("/api/v1/data/template/portfolio")
+def template_portfolio(user: User=Depends(current_user)):
+    data=as_bytes(portfolio_workbook([],template=True))
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition":"attachment; filename=MyStockAlert_Portfolio_Template.xlsx"})
+
+@app.get("/api/v1/data/template/transactions")
+def template_transactions(user: User=Depends(current_user)):
+    data=as_bytes(transaction_workbook([],template=True))
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition":"attachment; filename=MyStockAlert_Transactions_Template.xlsx"})
+
+@app.post("/api/v1/data/import/portfolio/preview")
+async def import_portfolio_preview(file: UploadFile=File(...), db: Session=Depends(get_db), user: User=Depends(current_user)):
+    if not (file.filename or "").lower().endswith(".xlsx"): raise HTTPException(400,"รองรับเฉพาะไฟล์ .xlsx")
+    return preview_portfolio(db,user.id,await file.read())
+
+@app.post("/api/v1/data/import/portfolio")
+async def import_portfolio_api(file: UploadFile=File(...), db: Session=Depends(get_db), user: User=Depends(current_user)):
+    if not (file.filename or "").lower().endswith(".xlsx"): raise HTTPException(400,"รองรับเฉพาะไฟล์ .xlsx")
+    try: return import_portfolio(db,user.id,await file.read())
+    except Exception as exc:
+        db.rollback(); raise HTTPException(422,str(exc)) from exc
+
+@app.post("/api/v1/data/import/transactions/preview")
+async def import_transactions_preview(file: UploadFile=File(...), db: Session=Depends(get_db), user: User=Depends(current_user)):
+    if not (file.filename or "").lower().endswith(".xlsx"): raise HTTPException(400,"รองรับเฉพาะไฟล์ .xlsx")
+    return preview_transactions(db,user.id,await file.read())
+
+@app.post("/api/v1/data/import/transactions")
+async def import_transactions_api(file: UploadFile=File(...), db: Session=Depends(get_db), user: User=Depends(current_user)):
+    if not (file.filename or "").lower().endswith(".xlsx"): raise HTTPException(400,"รองรับเฉพาะไฟล์ .xlsx")
+    try: return import_transactions(db,user.id,await file.read())
+    except Exception as exc:
+        db.rollback(); raise HTTPException(422,str(exc)) from exc
 
 @app.get("/api/v1/portfolio", response_model=list[PortfolioOut])
 def list_portfolio(db: Session=Depends(get_db), user: User=Depends(current_user)):
@@ -239,7 +298,9 @@ def list_watchlist(db: Session=Depends(get_db), user: User=Depends(current_user)
     result=[]
     for row in rows:
         rule=db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id==row.id))
-        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None,"upper_price":rule.upper_price if rule else None,"lower_price":rule.lower_price if rule else None})
+        quote = db.scalar(select(MarketQuote).where(MarketQuote.market == row.market, MarketQuote.symbol == row.symbol))
+        quote_age = (datetime.now(timezone.utc) - quote.quoted_at).total_seconds() if quote else None
+        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None,"upper_price":rule.upper_price if rule else None,"lower_price":rule.lower_price if rule else None,"current_price":quote.price if quote else None,"current_currency":quote.currency if quote else None,"current_change_percent":quote.change_percent if quote else None,"quoted_at":quote.quoted_at if quote else None,"quote_stale":quote is None or quote_age > 300})
     return result
 
 @app.post("/api/v1/watchlist", response_model=WatchlistOut, status_code=201)
@@ -429,30 +490,51 @@ async def provider_health():
             results.append({"market": market, "provider": "yahoo", "ok": False, "latency_ms": round((datetime.now(timezone.utc)-started).total_seconds()*1000, 1), "error": str(exc)})
     return results
 
-@app.get("/api/v1/market/quotes", response_model=list[QuoteOut])
-async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_user)):
-    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True))).all()
-    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id==user.id, WatchlistItem.enabled.is_(True))).all()
+@app.get("/api/v1/internal/market/quotes")
+async def refresh_market_quotes_internal(request: Request, db: Session=Depends(get_db)):
+    expected = os.getenv("WORKER_TOKEN", "")
+    supplied = request.headers.get("X-Worker-Token", "")
+    if not expected or supplied != expected:
+        raise HTTPException(401, "worker authentication required")
+
+    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.enabled.is_(True))).all()
+    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.enabled.is_(True))).all()
     symbols = {(x.market, x.symbol) for x in [*holdings, *watches]}
     provider = YahooProvider()
-    now = datetime.now(timezone.utc)
-    output=[]
+    refreshed = 0
+    failed = 0
     for market, symbol in sorted(symbols):
         try:
             q = await provider.quote(market, symbol)
-            row = db.scalar(select(MarketQuote).where(MarketQuote.market==market, MarketQuote.symbol==symbol))
+            row = db.scalar(select(MarketQuote).where(MarketQuote.market == market, MarketQuote.symbol == symbol))
             if not row:
                 row = MarketQuote(market=market, symbol=symbol)
                 db.add(row)
-            row.price=q.price; row.currency=q.currency; row.change_percent=q.change_percent
-            row.source=q.source; row.quoted_at=q.timestamp
-            db.commit(); db.refresh(row)
+            row.price = q.price
+            row.currency = q.currency
+            row.change_percent = q.change_percent
+            row.source = q.source
+            row.quoted_at = q.timestamp
+            refreshed += 1
         except Exception:
-            row = db.scalar(select(MarketQuote).where(MarketQuote.market==market, MarketQuote.symbol==symbol))
-            if not row:
-                continue
+            failed += 1
+    db.commit()
+    return {"status": "ok", "tracked": len(symbols), "refreshed": refreshed, "failed": failed, "quoted_at": datetime.now(timezone.utc)}
+
+
+@app.get("/api/v1/market/quotes", response_model=list[QuoteOut])
+async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id == user.id, PortfolioHolding.enabled.is_(True))).all()
+    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id, WatchlistItem.enabled.is_(True))).all()
+    symbols = {(x.market, x.symbol) for x in [*holdings, *watches]}
+    now = datetime.now(timezone.utc)
+    output = []
+    for market, symbol in sorted(symbols):
+        row = db.scalar(select(MarketQuote).where(MarketQuote.market == market, MarketQuote.symbol == symbol))
+        if not row:
+            continue
         age = (now - row.quoted_at).total_seconds()
-        output.append({"market":row.market,"symbol":row.symbol,"price":row.price,"currency":row.currency,"change_percent":row.change_percent,"source":row.source,"quoted_at":row.quoted_at,"stale":age > 300})
+        output.append({"market": row.market, "symbol": row.symbol, "price": row.price, "currency": row.currency, "change_percent": row.change_percent, "source": row.source, "quoted_at": row.quoted_at, "stale": age > 300})
     return output
 
 

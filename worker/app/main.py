@@ -12,7 +12,7 @@ async def poll_market() -> None:
     started = datetime.now(timezone.utc)
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.get(f"{BACKEND_URL}/api/v1/market/quotes")
+            response = await client.get(f"{BACKEND_URL}/api/v1/internal/market/quotes", headers={"X-Worker-Token": WORKER_TOKEN})
             response.raise_for_status()
             quotes = response.json()
             alert_response = await client.post(f"{BACKEND_URL}/api/v1/internal/alerts/evaluate", headers={"X-Worker-Token": WORKER_TOKEN})
