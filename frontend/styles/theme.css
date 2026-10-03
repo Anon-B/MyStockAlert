@@ -864,3 +864,52 @@ body.ms-dark-premium-root .ms-button-light:disabled { opacity:.35; }
   body.ms-dark-premium-root,
   body.ms-dark-premium-root #__next { min-height:100vh; background-color:#080b12 !important; }
 }
+
+/* Desktop dashboard scrolling: keep primary sidebar fixed while only content scrolls. */
+@media (min-width: 901px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .ms-shell {
+    height: 100vh;
+    min-height: 0;
+  }
+
+  .ms-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .ms-main {
+    height: 100vh;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 900px) {
+  html,
+  body {
+    height: auto;
+    overflow: auto;
+  }
+
+  .ms-shell {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .ms-main {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+}
