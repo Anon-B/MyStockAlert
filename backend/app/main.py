@@ -131,9 +131,13 @@ def create_portfolio(payload: PortfolioCreate, db: Session=Depends(get_db), user
     if row:
         if row.enabled:
             raise HTTPException(409, "portfolio holding already exists")
-        row.quantity=payload.quantity; row.average_cost=payload.average_cost; row.currency=payload.currency.upper(); row.enabled=payload.enabled
+        row.currency=payload.currency.upper(); row.enabled=payload.enabled
     else:
-        row = PortfolioHolding(user_id=user.id, market=market, symbol=symbol, quantity=payload.quantity, average_cost=payload.average_cost, currency=payload.currency.upper(), enabled=payload.enabled)
+        row = PortfolioHolding(
+            user_id=user.id, market=market, symbol=symbol,
+            quantity=payload.quantity, average_cost=payload.average_cost,
+            currency=payload.currency.upper(), enabled=payload.enabled,
+        )
         db.add(row)
     db.commit(); db.refresh(row)
     return row
@@ -218,7 +222,7 @@ def update_portfolio(item_id: uuid.UUID, payload: PortfolioUpdate, db: Session=D
     row = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
     if not row: raise HTTPException(404, "portfolio holding not found")
     market, symbol = normalize_market_symbol(payload.market, payload.symbol)
-    for k,v in {"market":market,"symbol":symbol,"quantity":payload.quantity,"average_cost":payload.average_cost,"currency":payload.currency.upper(),"enabled":payload.enabled}.items(): setattr(row,k,v)
+    for k,v in {"market":market,"symbol":symbol,"currency":payload.currency.upper(),"enabled":payload.enabled}.items(): setattr(row,k,v)
     db.commit(); db.refresh(row); return row
 
 @app.delete("/api/v1/portfolio/{item_id}", status_code=204)
@@ -375,25 +379,13 @@ def stock_master_status(db: Session = Depends(get_db), user: User = Depends(curr
 
 @app.post("/api/v1/market/stocks/sync")
 async def sync_stock_master(db: Session = Depends(get_db), user: User = Depends(current_user)):
-    rows = db.scalars(select(StockMaster).where(StockMaster.active.is_(True))).all()
-    tracked = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id)).all() + db.scalars(select(WatchlistItem).where(WatchlistItem.user_id==user.id)).all()
-    keys = {(x.market, x.symbol) for x in rows} | {(x.market, x.symbol) for x in tracked}
-    updated = added = failed = 0
-    for market, symbol in sorted(keys):
-        try:
-            results = await search_symbols(symbol, market, limit=8)
-            match = next((x for x in results if x["symbol"] == symbol), results[0] if results else None)
-            if not match: failed += 1; continue
-            row = db.scalar(select(StockMaster).where(StockMaster.market==market, StockMaster.symbol==symbol))
-            if not row:
-                row = StockMaster(market=market, symbol=symbol, name=match["name"], exchange=match.get("exchange"), currency=match["currency"], source="yahoo")
-                db.add(row); added += 1
-            else:
-                row.name=match["name"]; row.exchange=match.get("exchange"); row.currency=match["currency"]; row.active=True; row.synced_at=datetime.now(timezone.utc); updated += 1
-        except Exception:
-            failed += 1
-    db.commit()
-    return {"status":"ok" if failed == 0 else "partial", "updated":updated, "added":added, "failed":failed, "total":len(keys), "synced_at":datetime.now(timezone.utc).isoformat()}
+    """Refresh the local stock master from the provider screener, not one-symbol-at-a-time search."""
+    from .market.stock_master_sync import sync_all_stocks
+    try:
+        result = await sync_all_stocks(db)
+        return {"status": "ok", **result}
+    except Exception as exc:
+        raise HTTPException(502, f"stock master sync failed: {exc}")
 
 @app.get("/api/v1/fx/usd-thb")
 async def usd_thb_fx(db: Session = Depends(get_db)):

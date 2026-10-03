@@ -790,8 +790,6 @@ function Portfolio({
   const empty = {
     market: "TH",
     symbol: "",
-    quantity: "",
-    average_cost: "",
     currency: "THB",
     enabled: true,
   };
@@ -832,9 +830,10 @@ function Portfolio({
       method: mode === "edit" ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...f,
-        quantity: Number(f.quantity),
-        average_cost: Number(f.average_cost),
+        market: f.market,
+        symbol: f.symbol,
+        currency: f.currency,
+        enabled: f.enabled,
       }),
     });
     if (!r.ok) return alert("บันทึก Portfolio ไม่สำเร็จ");
@@ -852,6 +851,9 @@ function Portfolio({
   }
   async function openTx(h: Holding) {
     setSelected(h);
+    requestAnimationFrame(() => {
+      document.getElementById("stock-detail-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     const r = await apiFetch(`${API}/api/v1/portfolio/${h.id}/transactions`);
     setTxs(r.ok ? await r.json() : []);
     setShowFees(false);
@@ -966,22 +968,6 @@ function Portfolio({
               })
             }
           />
-          <label>
-            จำนวนหุ้น
-            <input
-              type="number"
-              value={f.quantity}
-              onChange={(e) => setF({ ...f, quantity: e.target.value })}
-            />
-          </label>
-          <label>
-            ราคาซื้อเฉลี่ย
-            <input
-              type="number"
-              value={f.average_cost}
-              onChange={(e) => setF({ ...f, average_cost: e.target.value })}
-            />
-          </label>
           <div className="ms-actions">
             <button className="ms-button ms-button-light" onClick={reset}>
               ยกเลิก
@@ -1030,7 +1016,7 @@ function Portfolio({
                     const avg = Number(x.average_cost);
                     const value = qty * price;
                     const pnl = (price - avg) * qty;
-                    const pnlPct = avg ? (price / avg - 1) * 100 : 0;
+                    const pnlPct = avg > 0 ? (price / avg - 1) * 100 : null;
                     return (
                       <tr key={x.id}>
                         <td>
@@ -1060,12 +1046,21 @@ function Portfolio({
                         </td>
                         <td
                           className={
-                            pnlPct >= 0 ? "ms-positive" : "ms-negative"
+                            pnlPct == null ? "" : pnlPct >= 0 ? "ms-positive" : "ms-negative"
                           }
                         >
-                          {pct(pnlPct)}
+                          {pnlPct == null ? "—" : pct(pnlPct)}
                         </td>
                         <td>
+                          <div className="ms-row-actions">
+                            <button
+                              type="button"
+                              className="ms-button ms-button-light ms-detail-row-button"
+                              onClick={() => openTx(x)}
+                            >
+                              ดูรายละเอียด
+                            </button>
+                          </div>
                           <div className="ms-row-menu">
                             <button
                               className="ms-menu-button"
@@ -1084,9 +1079,11 @@ function Portfolio({
                                   onClick={() => {
                                     setMode("edit");
                                     setF({
-                                      ...x,
-                                      quantity: String(x.quantity),
-                                      average_cost: String(x.average_cost),
+                                      market: x.market,
+                                      symbol: x.symbol,
+                                      currency: x.currency,
+                                      enabled: x.enabled,
+                                      id: x.id,
                                     });
                                     setSelected(null);
                                   }}
@@ -1118,7 +1115,7 @@ function Portfolio({
         );
       })}
       {selected && (
-        <div className="ms-transaction-panel ms-stock-detail">
+        <div id="stock-detail-panel" className="ms-transaction-panel ms-stock-detail">
           <div className="ms-card-header">
             <div>
               <span className="ms-market-chip">
@@ -1142,17 +1139,15 @@ function Portfolio({
             <div>
               <span>ต้นทุนเฉลี่ย</span>
               <strong>
-                {displayMoney(
-                  Number(selected.average_cost),
-                  selected.currency,
-                  display,
-                  fx,
-                )}
+                {Number(selected.average_cost) > 0
+                  ? displayMoney(Number(selected.average_cost), selected.currency, display, fx)
+                  : "—"}
               </strong>
-              <small className="ms-table-sub">
-                Native:{" "}
-                {money(Number(selected.average_cost), selected.currency)}
-              </small>
+              {Number(selected.average_cost) > 0 && (
+                <small className="ms-table-sub">
+                  Native:{" "}{money(Number(selected.average_cost), selected.currency)}
+                </small>
+              )}
             </div>
             <div>
               <span>รายการซื้อขาย</span>

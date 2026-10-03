@@ -7,12 +7,13 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class PortfolioCreate(BaseModel):
+    """Create a portfolio holding shell; position values come from transactions."""
     market: str
     symbol: str
-    quantity: Decimal = Field(gt=0)
-    average_cost: Decimal = Field(gt=0)
     currency: str
     enabled: bool = True
+    quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    average_cost: Decimal = Field(default=Decimal("0"), ge=0)
 
 class PortfolioUpdate(PortfolioCreate):
     pass
