@@ -519,3 +519,10 @@ input,select { border-color:rgba(255,255,255,.70); background:rgba(255,255,255,.
 .ms-watch-alert-title{font-weight:700;margin-bottom:10px}.ms-watch-alert-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}.ms-watch-alert-row label{display:flex;flex-direction:column;gap:6px}.ms-watch-alert-row input{width:100%}.ms-watch-rules{white-space:normal;line-height:1.7}.ms-table-sub{display:block;color:var(--ms-text-muted);font-size:11px;margin-top:2px}
 .ms-add-panel .ms-form-row{align-items:end}.ms-add-panel .ms-stock-picker{min-width:240px}
 @media(max-width:700px){.ms-watch-alert-row{grid-template-columns:1fr}.ms-watch-alert-group{grid-column:auto}.ms-add-panel .ms-form-row{grid-template-columns:1fr}.ms-add-panel .ms-stock-picker{min-width:0}}
+
+/* Product UX refinement: freshness, alerts, sync */
+.ms-data-warning{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid rgba(245,158,11,.25);border-radius:14px;background:rgba(245,158,11,.08);color:var(--ms-text);font-size:12px}.ms-data-warning strong{color:#b45309}.ms-data-warning span{color:var(--ms-text-muted)}
+.ms-alert-summary{display:flex;gap:18px;padding:0 24px 16px;color:var(--ms-text-muted);font-size:12px}.ms-alert-summary strong{color:var(--ms-text)}.ms-alert-error{display:block;max-width:260px;margin-top:3px;color:var(--ms-negative);font-size:11px;white-space:normal}.ms-alert-status.pending{background:rgba(245,158,11,.12);color:#b45309}
+.ms-fx-status{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:14px 0;padding:13px 14px;border:1px solid var(--ms-border);border-radius:12px;background:rgba(255,255,255,.22)}.ms-fx-status>div{display:flex;flex-direction:column;gap:4px}.ms-fx-status span{font-size:11px;color:var(--ms-text-muted)}.ms-fx-status strong{font-size:18px}.ms-fx-status small{font-size:11px;color:var(--ms-text-muted)}
+.ms-settings-card .ms-sync-result{color:var(--ms-text)}
+@media(max-width:700px){.ms-data-warning{align-items:flex-start;flex-direction:column;gap:4px}.ms-alert-summary{padding:0 18px 14px;gap:12px;flex-wrap:wrap}.ms-fx-status{align-items:flex-start;flex-direction:column}}

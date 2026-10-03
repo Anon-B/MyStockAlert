@@ -42,13 +42,20 @@ def api_health() -> dict:
 
 @app.get("/api/v1/portfolio", response_model=list[PortfolioOut])
 def list_portfolio(db: Session=Depends(get_db), user: User=Depends(current_user)):
-    return db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id).order_by(PortfolioHolding.market, PortfolioHolding.symbol)).all()
+    return db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True)).order_by(PortfolioHolding.market, PortfolioHolding.symbol)).all()
 
 @app.post("/api/v1/portfolio", response_model=PortfolioOut, status_code=status.HTTP_201_CREATED)
 def create_portfolio(payload: PortfolioCreate, db: Session=Depends(get_db), user: User=Depends(current_user)):
     market, symbol = normalize_market_symbol(payload.market, payload.symbol)
-    row = PortfolioHolding(user_id=user.id, market=market, symbol=symbol, quantity=payload.quantity, average_cost=payload.average_cost, currency=payload.currency.upper(), enabled=payload.enabled)
-    db.add(row); db.commit(); db.refresh(row)
+    row = db.scalar(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.market==market, PortfolioHolding.symbol==symbol))
+    if row:
+        if row.enabled:
+            raise HTTPException(409, "portfolio holding already exists")
+        row.quantity=payload.quantity; row.average_cost=payload.average_cost; row.currency=payload.currency.upper(); row.enabled=payload.enabled
+    else:
+        row = PortfolioHolding(user_id=user.id, market=market, symbol=symbol, quantity=payload.quantity, average_cost=payload.average_cost, currency=payload.currency.upper(), enabled=payload.enabled)
+        db.add(row)
+    db.commit(); db.refresh(row)
     return row
 
 @app.get("/api/v1/portfolio/{item_id}/transactions", response_model=list[PortfolioTransactionOut])
@@ -93,7 +100,9 @@ def update_portfolio(item_id: uuid.UUID, payload: PortfolioUpdate, db: Session=D
 def delete_portfolio(item_id: uuid.UUID, db: Session=Depends(get_db), user: User=Depends(current_user)):
     row = db.scalar(select(PortfolioHolding).where(PortfolioHolding.id==item_id, PortfolioHolding.user_id==user.id))
     if not row: raise HTTPException(404, "portfolio holding not found")
-    db.delete(row); db.commit()
+    row.enabled = False
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
 
 @app.get("/api/v1/watchlist", response_model=list[WatchlistOut])
 def list_watchlist(db: Session=Depends(get_db), user: User=Depends(current_user)):
@@ -176,18 +185,39 @@ def portfolio_summary(db: Session=Depends(get_db), user: User=Depends(current_us
     holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True))).all()
     quotes = db.scalars(select(MarketQuote)).all()
     qmap = {(q.market,q.symbol): q for q in quotes}
-    totals = {"THB": {"cost_basis": 0.0, "current_value": 0.0, "pnl": 0.0}, "USD": {"cost_basis": 0.0, "current_value": 0.0, "pnl": 0.0}}
+    totals = {"THB": {"cost_basis": 0.0, "current_value": 0.0, "pnl": 0.0, "realized_pnl": 0.0, "unrealized_pnl": 0.0}, "USD": {"cost_basis": 0.0, "current_value": 0.0, "pnl": 0.0, "realized_pnl": 0.0, "unrealized_pnl": 0.0}}
     rows = []
     for h in holdings:
         cost = float(h.quantity * h.average_cost)
         q = qmap.get((h.market,h.symbol))
         current = float(h.quantity * q.price) if q else None
-        pnl = current - cost if current is not None else None
+        unrealized = current - cost if current is not None else None
+        realized = 0.0
+        running_qty = 0.0
+        running_cost = 0.0
+        txs = db.scalars(select(PortfolioTransaction).where(PortfolioTransaction.holding_id==h.id).order_by(PortfolioTransaction.executed_at, PortfolioTransaction.created_at)).all()
+        for tx in txs:
+            qty = float(tx.quantity)
+            net = float(tx.net_amount)
+            if tx.side == "BUY":
+                running_qty += qty
+                running_cost += net
+            elif tx.side == "SELL" and running_qty > 0:
+                avg_open = running_cost / running_qty
+                sold_qty = min(qty, running_qty)
+                realized += net - (avg_open * sold_qty)
+                running_qty -= sold_qty
+                running_cost -= avg_open * sold_qty
         currency = h.currency
         totals[currency]["cost_basis"] += cost
         if current is not None:
-            totals[currency]["current_value"] += current; totals[currency]["pnl"] += pnl
-        rows.append({"id": str(h.id), "market": h.market, "symbol": h.symbol, "currency": currency, "cost_basis": cost, "current_value": current, "pnl": pnl, "pnl_percent": (pnl/cost*100 if pnl is not None and cost else None), "stale": bool(q and (datetime.now(timezone.utc)-q.quoted_at).total_seconds()>300)})
+            totals[currency]["current_value"] += current
+            totals[currency]["pnl"] += unrealized
+            totals[currency]["unrealized_pnl"] += unrealized
+        totals[currency]["realized_pnl"] += realized
+        rows.append({"id": str(h.id), "market": h.market, "symbol": h.symbol, "currency": currency, "cost_basis": cost, "current_value": current, "pnl": (unrealized + realized) if unrealized is not None else realized, "pnl_percent": ((unrealized + realized)/cost*100 if unrealized is not None and cost else None), "realized_pnl": realized, "unrealized_pnl": unrealized, "stale": bool(q and (datetime.now(timezone.utc)-q.quoted_at).total_seconds()>300)})
+    for currency in totals:
+        totals[currency]["pnl"] = totals[currency]["realized_pnl"] + totals[currency]["unrealized_pnl"]
     return {"rows": rows, "totals": totals}
 
 @app.get("/api/v1/market/search")
