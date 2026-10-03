@@ -313,7 +313,7 @@ export default function Home() {
           </div>
         </div>
         <nav>
-          {Object.entries(NAV).map(([k, v]) => (
+          {Object.entries(NAV).filter(([k]) => k !== "settings").map(([k, v]) => (
             <button
               key={k}
               className={page === k ? "ms-nav ms-nav-active" : "ms-nav"}
@@ -324,9 +324,19 @@ export default function Home() {
           ))}
         </nav>
         <div className="ms-sidebar-footer">
-          <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
-          {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
-          <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
+          <button
+            className={page === "settings" ? "ms-nav ms-nav-active" : "ms-nav"}
+            onClick={() => setPage("settings")}
+          >
+            {NAV.settings}
+          </button>
+          <div className="ms-sidebar-system-status">
+            <span>
+              <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
+              {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
+            </span>
+            <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
+          </div>
         </div>
       </aside>
       <main className="ms-main">
