@@ -33,9 +33,6 @@
   font-feature-settings: "tnum" 1;
 }
 .ms-status-badge { flex: 0 0 auto; }
-.ms-table td:last-child { text-align: center; }
-.ms-table td:nth-child(1) { text-align: center; }
-.ms-table td:nth-child(2) { text-align: left; }
 
 .ms-stock-input-wrap {
   display: flex;

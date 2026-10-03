@@ -212,14 +212,39 @@ input, select, textarea {
 .ms-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
+
+/* Stable column geometry: header and values share the exact same center axis. */
+.ms-table-stock th:nth-child(1), .ms-table-stock td:nth-child(1) { width: 10%; }
+.ms-table-stock th:nth-child(2), .ms-table-stock td:nth-child(2) { width: 14%; }
+.ms-table-stock th:nth-child(3), .ms-table-stock td:nth-child(3) { width: 11%; }
+.ms-table-stock th:nth-child(4), .ms-table-stock td:nth-child(4) { width: 17%; }
+.ms-table-stock th:nth-child(5), .ms-table-stock td:nth-child(5) { width: 17%; }
+.ms-table-stock th:nth-child(6), .ms-table-stock td:nth-child(6) { width: 15%; }
+.ms-table-stock th:nth-child(7), .ms-table-stock td:nth-child(7) { width: 16%; }
+
+.ms-table-portfolio th:nth-child(1), .ms-table-portfolio td:nth-child(1) { width: 18%; }
+.ms-table-portfolio th:nth-child(2), .ms-table-portfolio td:nth-child(2) { width: 12%; }
+.ms-table-portfolio th:nth-child(3), .ms-table-portfolio td:nth-child(3) { width: 17%; }
+.ms-table-portfolio th:nth-child(4), .ms-table-portfolio td:nth-child(4) { width: 19%; }
+.ms-table-portfolio th:nth-child(5), .ms-table-portfolio td:nth-child(5) { width: 16%; }
+.ms-table-portfolio th:nth-child(6), .ms-table-portfolio td:nth-child(6) { width: 10%; }
+.ms-table-portfolio th:nth-child(7), .ms-table-portfolio td:nth-child(7) { width: 8%; }
+
+.ms-table-alerts th:nth-child(1), .ms-table-alerts td:nth-child(1) { width: 16%; }
+.ms-table-alerts th:nth-child(2), .ms-table-alerts td:nth-child(2) { width: 14%; }
+.ms-table-alerts th:nth-child(3), .ms-table-alerts td:nth-child(3) { width: 26%; }
+.ms-table-alerts th:nth-child(4), .ms-table-alerts td:nth-child(4) { width: 15%; }
+.ms-table-alerts th:nth-child(5), .ms-table-alerts td:nth-child(5) { width: 14%; }
+.ms-table-alerts th:nth-child(6), .ms-table-alerts td:nth-child(6) { width: 15%; }
 .ms-table th {
   height: var(--ms-table-header-height);
   color: var(--ms-text-muted);
   font-size: 11px;
   line-height: 16px;
   font-weight: var(--ms-weight-semibold);
-  text-align: left;
+  text-align: center;
   text-transform: uppercase;
   letter-spacing: .04em;
 }
@@ -229,11 +254,11 @@ input, select, textarea {
   height: var(--ms-table-row-height);
   border-bottom: 1px solid var(--ms-border);
   vertical-align: middle;
+  text-align: center;
 }
 .ms-table th.numeric,
-.ms-table td.numeric,
-.ms-table td:nth-child(n+3) {
-  text-align: right;
+.ms-table td.numeric {
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .ms-table tbody tr:hover { background: var(--ms-surface-hover); }

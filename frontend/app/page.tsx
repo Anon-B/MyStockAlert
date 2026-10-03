@@ -95,41 +95,56 @@ type Summary = {
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" });
 const NAV: { [k: string]: string } = {
-  dashboard: "Dashboard",
-  portfolio: "Portfolio",
-  watchlist: "Watchlist",
-  alerts: "Alerts",
-  settings: "Settings",
+  dashboard: "ภาพรวม (Dashboard)",
+  portfolio: "พอร์ตการลงทุน (Portfolio)",
+  watchlist: "รายการติดตาม (Watchlist)",
+  alerts: "การแจ้งเตือน (Alerts)",
+  settings: "ตั้งค่า (Settings)",
 };
-const pct = (v: number | null | string) =>
-  v == null ? "—" : `${Number(v) >= 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
-const money = (v: number | null, c = "") =>
-  v == null
-    ? "—"
-    : `${c} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const toNumber = (v: number | string | null | undefined) => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const pct = (v: number | null | string) => {
+  const n = toNumber(v);
+  return n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+};
+const money = (v: number | string | null, c = "") => {
+  const n = toNumber(v);
+  if (n == null) return "—";
+  const normalized = Math.abs(n) < 0.000000005 ? 0 : n;
+  return `${c} ${normalized.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const quantity = (v: number | string | null) => {
+  const n = toNumber(v);
+  if (n == null) return "—";
+  const normalized = Math.abs(n) < 0.000000005 ? 0 : n;
+  return normalized.toLocaleString(undefined, { maximumFractionDigits: 8 });
+};
 const alertLabel = (t: string) =>
   (
     ({
-      watchlist_upper: "ถึงเป้าหมายด้านบน",
-      watchlist_lower: "ถึงเป้าหมายด้านล่าง",
-      portfolio_open_TH: "ตลาดไทยเปิด",
-      portfolio_close_TH: "ตลาดไทยปิด",
-      portfolio_open_US: "ตลาดสหรัฐเปิด",
-      portfolio_close_US: "ตลาดสหรัฐปิด",
+      watchlist_upper: "ถึงเป้าหมายด้านบน (Upper Target)",
+      watchlist_lower: "ถึงเป้าหมายด้านล่าง (Lower Target)",
+      portfolio_open_TH: "ตลาดหุ้นไทยเปิด (Market Open)",
+      portfolio_close_TH: "ตลาดหุ้นไทยปิด (Market Close)",
+      portfolio_open_US: "ตลาดหุ้นสหรัฐเปิด (Market Open)",
+      portfolio_close_US: "ตลาดหุ้นสหรัฐปิด (Market Close)",
     }) as any
   )[t] || t;
 const statusLabel = (s: string) =>
   s === "delivered"
-    ? "ส่งแล้ว"
+    ? "ส่งแล้ว (Delivered)"
     : s === "failed"
-      ? "ส่งไม่สำเร็จ"
+      ? "ส่งไม่สำเร็จ (Failed)"
       : s === "retrying"
-        ? "กำลังลองส่งใหม่"
-        : "กำลังส่ง";
+        ? "กำลังส่งอีกครั้ง (Retrying)"
+        : "กำลังส่ง (Pending)";
 const transactionStatusLabel = (s: string) => ({
-  FILLED: "FILLED · จับคู่แล้ว", MATCHED: "FILLED · จับคู่แล้ว",
-  PENDING: "PENDING · รอจับคู่", CANCELLED: "CANCELLED · ยกเลิก",
-  REJECTED: "REJECTED · ไม่รับคำสั่ง",
+  FILLED: "ดำเนินการแล้ว (FILLED) · จับคู่แล้ว", MATCHED: "ดำเนินการแล้ว (FILLED) · จับคู่แล้ว",
+  PENDING: "รอดำเนินการ (PENDING) · รอจับคู่", CANCELLED: "ยกเลิก (CANCELLED)",
+  REJECTED: "ไม่รับคำสั่ง (REJECTED)",
 } as Record<string, string>)[s] || s;
 const freshnessLabel = (q: Quote | null | undefined) => {
   if (!q) return "ไม่มีข้อมูล";
@@ -433,31 +448,31 @@ function Dashboard({
     <>
       <DataFreshnessBanner quotes={quotes} />
       <section className="ms-grid ms-grid-4">
-        <Card label="หุ้นใน Portfolio" value={String(h.length)} />
+        <Card label="หุ้นที่ถืออยู่ (Holdings)" value={String(h.length)} />
         <Card
-          label="มูลค่า TH"
+          label="มูลค่าพอร์ตหุ้นไทย (TH Portfolio Value)"
           value={displayMoney(th?.current_value ?? 0, "THB", display, fx)}
           sub={
             th
-              ? `ต้นทุน ${displayMoney(th.cost_basis, "THB", display, fx)} · P/L ${displayMoney(th.pnl, "THB", display, fx)} (${pct(thPct)}) · รับรู้ ${displayMoney(th.realized_pnl ?? 0, "THB", display, fx)} · ยังไม่รับรู้ ${displayMoney(th.unrealized_pnl ?? 0, "THB", display, fx)}`
+              ? `ต้นทุนสะสม (Cost Basis) ${displayMoney(th.cost_basis, "THB", display, fx)} · กำไร/ขาดทุน (P/L) ${displayMoney(th.pnl, "THB", display, fx)} (${pct(thPct)}) · เกิดขึ้นแล้ว (Realized) ${displayMoney(th.realized_pnl ?? 0, "THB", display, fx)} · ยังไม่เกิดขึ้นจริง (Unrealized) ${displayMoney(th.unrealized_pnl ?? 0, "THB", display, fx)}`
               : "—"
           }
         />
         <Card
-          label="มูลค่า US"
+          label="มูลค่าพอร์ตหุ้นสหรัฐ (US Portfolio Value)"
           value={displayMoney(us?.current_value ?? 0, "USD", display, fx)}
           sub={
             us
-              ? `ต้นทุน ${displayMoney(us.cost_basis, "USD", display, fx)} · P/L ${displayMoney(us.pnl, "USD", display, fx)} (${pct(usPct)}) · รับรู้ ${displayMoney(us.realized_pnl ?? 0, "USD", display, fx)} · ยังไม่รับรู้ ${displayMoney(us.unrealized_pnl ?? 0, "USD", display, fx)}`
+              ? `ต้นทุนสะสม (Cost Basis) ${displayMoney(us.cost_basis, "USD", display, fx)} · กำไร/ขาดทุน (P/L) ${displayMoney(us.pnl, "USD", display, fx)} (${pct(usPct)}) · เกิดขึ้นแล้ว (Realized) ${displayMoney(us.realized_pnl ?? 0, "USD", display, fx)} · ยังไม่เกิดขึ้นจริง (Unrealized) ${displayMoney(us.unrealized_pnl ?? 0, "USD", display, fx)}`
               : "—"
           }
         />
-        <Card label="Alerts" value={String(a.length)} sub="ประวัติทั้งหมด" />
+        <Card label="การแจ้งเตือน (Alerts)" value={String(a.length)} sub="ประวัติทั้งหมด" />
       </section>
       <section className="ms-card ms-dashboard-gap ms-dashboard-portfolio">
         <div className="ms-card-header">
           <div>
-            <h2 className="ms-section-title">Portfolio</h2>
+            <h2 className="ms-section-title">พอร์ตการลงทุน (Portfolio)</h2>
             <p className="ms-section-subtitle">
               มูลค่าพอร์ต · แสดง{" "}
               {display === "native" ? "สกุลเงินของแต่ละตลาด" : display}{" "}
@@ -491,7 +506,7 @@ function Dashboard({
       <section className="ms-card ms-dashboard-gap">
         <div className="ms-card-header">
           <div>
-            <h2 className="ms-section-title">Watchlist</h2>
+            <h2 className="ms-section-title">รายการติดตาม (Watchlist)</h2>
             <p className="ms-section-subtitle">
               รายการที่กำลังติดตามและเงื่อนไขแจ้งเตือน
             </p>
@@ -554,7 +569,7 @@ function StockTable({
         <td>
           <strong>{x.symbol}</strong>
         </td>
-        <td>{x.quantity}</td>
+        <td className="numeric">{quantity(x.quantity)}</td>
         <td>{money(Number(x.average_cost), x.currency)}</td>
         <td>
           {z ? displayMoney(Number(z.price), z.currency, display, fx) : "—"}
@@ -569,14 +584,14 @@ function StockTable({
   });
   return (
     <div className="ms-table-wrap">
-      <table className="ms-table">
+      <table className="ms-table ms-table-stock">
         <thead>
           <tr>
             <th>ตลาด (Market)</th>
             <th>หุ้น (Symbol)</th>
             <th>จำนวน (Qty)</th>
-            <th>ต้นทุนเฉลี่ย (Avg Cost)</th>
-            <th>ราคาปัจจุบัน (Price)</th>
+            <th>ต้นทุนเฉลี่ยต่อหุ้น (Avg Cost)</th>
+            <th>ราคาล่าสุด (Price)</th>
             <th>กำไร/ขาดทุน (P/L)</th>
             <th>สกุลเงิน (Currency)</th>
           </tr>
@@ -634,14 +649,14 @@ function WatchTable({
               </div>
               <div className="ms-watch-price">
                 <strong>{q ? money(Number(q.price), q.currency) : "—"}</strong>
-                <small>ราคาปัจจุบัน</small>
+                <small>ราคาล่าสุด (Current Price)</small>
               </div>
               <div className={q && Number(q.change_percent || 0) >= 0 ? "ms-watch-change ms-positive" : "ms-watch-change ms-negative"}>
                 <strong>{q ? pct(q.change_percent) : "—"}</strong>
               </div>
               <div className="ms-watch-alert">
                 <span>{rules.length ? rules.join("  ") : "—"}</span>
-                <small>Alert</small>
+                <small>เงื่อนไขแจ้งเตือน (Alert)</small>
               </div>
               {editable && (
                 <div className="ms-row-menu ms-watch-item-menu">
@@ -951,7 +966,7 @@ function Portfolio({
       <div className="ms-card ms-portfolio-toolbar">
         <div className="ms-card-header">
           <div>
-            <h2 className="ms-section-title">Portfolio</h2>
+            <h2 className="ms-section-title">พอร์ตการลงทุน (Portfolio)</h2>
             <p className="ms-section-subtitle">
               ดูสถานะหุ้น และจัดการรายการซื้อขายแยกเป็นรายหุ้น
             </p>
@@ -1037,12 +1052,12 @@ function Portfolio({
               </div>
             </div>
             <div className="ms-table-wrap">
-              <table className="ms-table">
+              <table className="ms-table ms-table-portfolio">
                 <thead>
                   <tr>
-                    <th>หุ้น</th>
+                    <th>หุ้น (Symbol)</th>
                     <th>จำนวน</th>
-                    <th>ราคา</th>
+                    <th>ราคา (Price)</th>
                     <th>มูลค่า</th>
                     <th>P/L</th>
                     <th>%</th>
@@ -1195,10 +1210,10 @@ function Portfolio({
           <div className="ms-detail-summary">
             <div>
               <span>จำนวนปัจจุบัน</span>
-              <strong>{Number(selected.quantity).toLocaleString()}</strong>
+              <strong>{quantity(selected.quantity)}</strong>
             </div>
             <div>
-              <span>ต้นทุนเฉลี่ย</span>
+              <span>ต้นทุนเฉลี่ยต่อหุ้น (Avg Cost)</span>
               <strong>
                 {Number(selected.average_cost) > 0
                   ? displayMoney(Number(selected.average_cost), selected.currency, display, fx)
@@ -1245,16 +1260,18 @@ function Portfolio({
           <div className="ms-trade-form ms-detail-trade">
             <div className="ms-side-toggle">
               <button
+                aria-label="ซื้อ (BUY)"
                 className={tx.side === "BUY" ? "active buy" : ""}
                 onClick={() => setTx({ ...tx, side: "BUY" })}
               >
-                BUY
+                ซื้อ (BUY)
               </button>
               <button
+                aria-label="ขาย (SELL)"
                 className={tx.side === "SELL" ? "active sell" : ""}
                 onClick={() => setTx({ ...tx, side: "SELL" })}
               >
-                SELL
+                ขาย (SELL)
               </button>
             </div>
             <label>
@@ -1266,7 +1283,7 @@ function Portfolio({
               />
             </label>
             <label>
-              {tx.side === "BUY" ? "ราคาที่ซื้อ" : "ราคาที่ขาย"}
+              {tx.side === "BUY" ? "ราคาซื้อ (Execution Price)" : "ราคาขาย (Execution Price)"}
               <input
                 type="number"
                 value={tx.execution_price}
@@ -1289,23 +1306,23 @@ function Portfolio({
               />
             </label>
             <label>
-              Order ID <span className="ms-optional">(ถ้ามี)</span>
+              รหัสคำสั่งซื้อขาย (Order ID) <span className="ms-optional">(ถ้ามี)</span>
               <input
                 value={tx.order_id}
                 onChange={(e) => setTx({ ...tx, order_id: e.target.value })}
               />
             </label>
             <label>
-              สถานะคำสั่ง
+              สถานะรายการ (Order Status)
               <select value={tx.status} onChange={(e) => setTx({ ...tx, status: e.target.value })}>
-                <option value="FILLED">FILLED · จับคู่แล้ว</option>
-                <option value="PENDING">PENDING · รอจับคู่</option>
-                <option value="CANCELLED">CANCELLED · ยกเลิก</option>
+                <option value="FILLED">ดำเนินการแล้ว (FILLED) · จับคู่แล้ว</option>
+                <option value="PENDING">รอดำเนินการ (PENDING) · รอจับคู่</option>
+                <option value="CANCELLED">ยกเลิก (CANCELLED)</option>
               </select>
             </label>
             {selected.currency === "USD" && (
               <label>
-                FX Rate <span className="ms-optional">(THB / USD)</span>
+                อัตราแลกเปลี่ยน (FX Rate) <span className="ms-optional">(THB / USD)</span>
                 <input
                   type="number"
                   step="0.000001"
@@ -1318,7 +1335,7 @@ function Portfolio({
             )}
             <div className="ms-trade-calculated">
               <div>
-                <span>มูลค่า{tx.side === "BUY" ? "ซื้อ" : "ขาย"}</span>
+                <span>มูลค่ารายการ (Trading Value)</span>
                 <strong>
                   {money(
                     (Number(tx.quantity) || 0) *
@@ -1328,11 +1345,11 @@ function Portfolio({
                 </strong>
               </div>
               <div>
-                <span>ค่าธรรมเนียม</span>
+                <span>ค่าธรรมเนียม (Fees)</span>
                 <strong>{money(fees, selected.currency)}</strong>
               </div>
               <div>
-                <span>ยอดสุทธิ</span>
+                <span>ยอดสุทธิ (Net Amount)</span>
                 <strong>
                   {money(
                     (Number(tx.quantity) || 0) *
@@ -1359,30 +1376,30 @@ function Portfolio({
             {showFees && (
               <div className="ms-fee-panel">
                 <div className="ms-fee-title">
-                  ค่าธรรมเนียม / ภาษี{" "}
+                  ค่าธรรมเนียม / ภาษี (Fees / Tax){" "}
                   <span className="ms-optional">(ทั้งหมด Optional)</span>
                 </div>
                 <div className="ms-fee-grid">
                   {[
-                    ["commission", "Commission"],
+                    ["commission", "ค่าคอมมิชชัน (Commission)"],
                     [
                       "trading_fee",
                       selected.market === "TH"
-                        ? "SET Trading Fee"
-                        : "Trading Fee",
+                        ? "ค่าธรรมเนียมการซื้อขาย (SET Trading Fee)"
+                        : "ค่าธรรมเนียมการซื้อขาย (Trading Fee)",
                     ],
                     [
                       "clearing_fee",
                       selected.market === "TH"
-                        ? "TSD Clearing Fee"
-                        : "Clearing Fee",
+                        ? "ค่าธรรมเนียมชำระราคา (TSD Clearing Fee)"
+                        : "ค่าธรรมเนียมชำระราคา (Clearing Fee)",
                     ],
-                    ["regulatory_fee", "Regulatory Fee"],
-                    ["cat_fee", "CAT Fee"],
-                    ["sec_fee", "SEC Fee"],
-                    ["taf_fee", "TAF Fee"],
-                    ["vat", "VAT / Tax"],
-                    ["fx_rate", "FX Rate"],
+                    ["regulatory_fee", "ค่าธรรมเนียมตามกฎระเบียบ (Regulatory Fee)"],
+                    ["cat_fee", "ค่าธรรมเนียม CAT (CAT Fee)"],
+                    ["sec_fee", "ค่าธรรมเนียม SEC (SEC Fee)"],
+                    ["taf_fee", "ค่าธรรมเนียม TAF (TAF Fee)"],
+                    ["vat", "ภาษี / VAT (VAT / Tax)"],
+                    ["fx_rate", "อัตราแลกเปลี่ยน (FX Rate)"],
                   ].map(([k, l]) => (
                     <label key={k}>
                       {l}
@@ -1396,7 +1413,7 @@ function Portfolio({
                   ))}
                 </div>
                 <p className="ms-fee-hint">
-                  ช่องทั้งหมดเป็น Optional · BUY = มูลค่า + ค่าธรรมเนียม · SELL
+                  ช่องทั้งหมดเป็น Optional · ซื้อ (BUY) = มูลค่า + ค่าธรรมเนียม · ขาย (SELL)
                   = มูลค่า − ค่าธรรมเนียม
                 </p>
               </div>
@@ -1413,8 +1430,8 @@ function Portfolio({
                     <span className={`ms-status-badge ms-status-${String(x.status || "FILLED").toLowerCase()}`}>{transactionStatusLabel(x.status || "FILLED")}</span>
                     <span>{String(x.executed_at || "—").slice(0, 10)}</span>
                     <span>
-                      {Number(x.quantity).toLocaleString()} ×{" "}
-                      {Number(x.execution_price).toLocaleString()}
+                      {quantity(x.quantity)} ×{" "}
+                      {money(x.execution_price, selected.currency)}
                     </span>
                     <span>
                       {money(Number(x.net_amount || 0), selected.currency)}
@@ -1426,7 +1443,7 @@ function Portfolio({
             )}
           </div>
           {txs.some((x) => String(x.status).toUpperCase() === "CANCELLED") && (
-            <div className="ms-banner ms-banner-warning">⚠ รายการ CANCELLED จะไม่ถูกนำไปคำนวณ Holdings, Cost Basis หรือ Average Cost</div>
+            <div className="ms-banner ms-banner-warning">⚠ รายการยกเลิก (CANCELLED) จะไม่ถูกนำไปคำนวณจำนวนหุ้นที่ถืออยู่ (Holdings), ต้นทุนสะสม (Cost Basis) หรือต้นทุนเฉลี่ยต่อหุ้น (Average Cost)</div>
           )}
           </div>
         </div>
@@ -1539,7 +1556,7 @@ function Watchlist({
     <section className="ms-card">
       <div className="ms-card-header">
         <div>
-          <h2 className="ms-section-title">Watchlist</h2>
+          <h2 className="ms-section-title">รายการติดตาม (Watchlist)</h2>
           <p className="ms-section-subtitle">
             ติดตามราคาและตั้งแจ้งเตือนแบบเปอร์เซ็นต์หรือราคา
           </p>
@@ -1688,7 +1705,7 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
     <section className="ms-card">
       <div className="ms-card-header">
         <div>
-          <h2 className="ms-section-title">Alerts</h2>
+          <h2 className="ms-section-title">การแจ้งเตือน (Alerts)</h2>
           <p className="ms-section-subtitle">
             ประวัติการแจ้งเตือน พร้อมเวลาส่งและสถานะล่าสุด
           </p>
@@ -1699,24 +1716,24 @@ function Alerts({ rows, quotes }: { rows: Alert[]; quotes: Quote[] }) {
           ทั้งหมด <strong>{rows.length}</strong>
         </span>
         <span>
-          ส่งแล้ว{" "}
+          ส่งแล้ว (Delivered){" "}
           <strong>{rows.filter((x) => x.status === "delivered").length}</strong>
         </span>
         <span>
-          ต้องตรวจสอบ{" "}
+          ต้องตรวจสอบ (Review){" "}
           <strong>{rows.filter((x) => x.status === "failed").length}</strong>
         </span>
       </div>
       <div className="ms-table-wrap">
-        <table className="ms-table">
+        <table className="ms-table ms-table-alerts">
           <thead>
             <tr>
-              <th>เวลา</th>
-              <th>หุ้น</th>
-              <th>เงื่อนไข</th>
-              <th>ราคา</th>
-              <th>เปลี่ยนแปลง</th>
-              <th>การส่ง</th>
+              <th>เวลา (Time)</th>
+              <th>หุ้น (Symbol)</th>
+              <th>เงื่อนไขแจ้งเตือน (Alert Condition)</th>
+              <th>ราคา (Price)</th>
+              <th>การเปลี่ยนแปลงของราคา (%)</th>
+              <th>สถานะการส่ง (Delivery)</th>
             </tr>
           </thead>
           <tbody>
