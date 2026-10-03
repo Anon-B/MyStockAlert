@@ -227,6 +227,9 @@ export default function Home() {
   }
   useEffect(() => {
     load();
+    const onReload = () => load(true);
+    window.addEventListener("mystockalert:reload", onReload);
+    return () => window.removeEventListener("mystockalert:reload", onReload);
   }, []);
   useEffect(() => {
     const value = settings.find((x) => x.key === "refresh_interval")?.value;
@@ -2000,8 +2003,84 @@ function Settings({
           </button>
           {syncMessage && <div className="ms-sync-result">{syncMessage}</div>}
         </div>
+        <DataManagement />
       </div>
     </section>
+  );
+}
+
+function DataManagement() {
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  const [preview, setPreview] = useState<any>(null);
+  const [selected, setSelected] = useState<{kind: "portfolio" | "transactions"; file: File} | null>(null);
+  const download = async (path: string, fallback: string) => {
+    setBusy(path); setMessage("");
+    try {
+      const r = await apiFetch(`${API}${path}`);
+      if (!r.ok) throw new Error();
+      const blob = await r.blob(); const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = fallback; a.click(); URL.revokeObjectURL(url);
+      setMessage("✓ ดาวน์โหลดไฟล์เรียบร้อย");
+    } catch { setMessage("⚠ ดาวน์โหลดไม่สำเร็จ"); } finally { setBusy(""); }
+  };
+  const choose = async (kind: "portfolio" | "transactions", file: File | undefined) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".xlsx")) { setMessage("⚠ รองรับเฉพาะไฟล์ .xlsx"); return; }
+    setBusy(`preview-${kind}`); setMessage(""); setPreview(null); setSelected({kind, file});
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await apiFetch(`${API}/api/v1/data/import/${kind}/preview`, {method:"POST", body:fd});
+      const data = await r.json(); if (!r.ok) throw new Error(data.detail || "Preview failed");
+      setPreview(data);
+      setMessage(data.errors?.length ? `⚠ พบข้อผิดพลาด ${data.errors.length} รายการ` : `✓ ตรวจสอบผ่าน ${data.valid || 0} แถว`);
+    } catch (e:any) { setMessage(`⚠ ${e.message || "ตรวจสอบไฟล์ไม่สำเร็จ"}`); setSelected(null); } finally { setBusy(""); }
+  };
+  const commit = async () => {
+    if (!selected || preview?.errors?.length) return;
+    setBusy(`import-${selected.kind}`);
+    try {
+      const fd = new FormData(); fd.append("file", selected.file);
+      const r = await apiFetch(`${API}/api/v1/data/import/${selected.kind}`, {method:"POST", body:fd});
+      const data = await r.json(); if (!r.ok) throw new Error(data.detail || "Import failed");
+      setMessage(`✓ นำเข้าสำเร็จ ${data.imported || 0} รายการ · ข้ามซ้ำ ${data.skipped || 0} · ผิดพลาด ${data.failed || 0}`);
+      setPreview(data); setSelected(null);
+      window.dispatchEvent(new Event("mystockalert:reload"));
+    } catch (e:any) { setMessage(`⚠ ${e.message || "นำเข้าไม่สำเร็จ"}`); } finally { setBusy(""); }
+  };
+  const downloadErrors = () => {
+    if (!preview?.errors?.length) return;
+    const esc=(v:any)=>`"${String(v).replaceAll('"','""')}"`;
+    const csv=["row,message",...preview.errors.map((x:any)=>`${x.row},${esc(x.message)}`)].join("\n");
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}); const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download="MyStockAlert_Import_Errors.csv"; a.click(); URL.revokeObjectURL(url);
+  };
+  return (
+    <div className="ms-settings-group">
+      <h3>📦 Data Management</h3>
+      <p className="ms-muted">ส่งออกข้อมูลเป็น Excel หรือเตรียมไฟล์ Excel เพื่อนำเข้า โดยระบบจะตรวจสอบก่อนบันทึกจริง</p>
+      <div className="ms-data-row"><span>Portfolio</span><div className="ms-button-row">
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/export/portfolio","MyStockAlert_Portfolio.xlsx")} disabled={!!busy}>Export Portfolio</button>
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/portfolio","MyStockAlert_Portfolio_Template.xlsx")} disabled={!!busy}>Template</button>
+        <label className="ms-button ms-button-light">Import<input hidden type="file" accept=".xlsx" onChange={e=>choose("portfolio",e.target.files?.[0])}/></label>
+      </div></div>
+      <div className="ms-data-row"><span>Transactions</span><div className="ms-button-row">
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/export/transactions","MyStockAlert_Transactions.xlsx")} disabled={!!busy}>Export Transactions</button>
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/transactions","MyStockAlert_Transactions_Template.xlsx")} disabled={!!busy}>Template</button>
+        <label className="ms-button ms-button-light">Import<input hidden type="file" accept=".xlsx" onChange={e=>choose("transactions",e.target.files?.[0])}/></label>
+      </div></div>
+      {preview && <div className="ms-import-preview">
+        <strong>Preview · {preview.total || 0} แถว</strong>
+        <span>ผ่าน {preview.valid || 0}</span><span>ผิดพลาด {preview.errors?.length || 0}</span><span>คำเตือน {preview.warnings?.length || 0}</span>
+        {preview.warnings?.slice(0,5).map((x:any,i:number)=><small key={`w${i}`}>⚠ แถว {x.row}: {x.message}</small>)}
+        {preview.errors?.slice(0,8).map((x:any,i:number)=><small key={`e${i}`}>✕ แถว {x.row}: {x.message}</small>)}
+        <div className="ms-button-row">
+          {preview.errors?.length > 0 && <button className="ms-button ms-button-light" onClick={downloadErrors}>ดาวน์โหลด Error Report</button>}
+          {selected && !preview.errors?.length && <button className="ms-button ms-button-primary" onClick={commit} disabled={!!busy}>{busy ? "กำลังนำเข้า..." : "ยืนยัน Import"}</button>}
+        </div>
+      </div>}
+      {message && <div className="ms-sync-result">{message}</div>}
+    </div>
   );
 }
 

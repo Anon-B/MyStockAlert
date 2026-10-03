@@ -42,6 +42,7 @@ class PortfolioTransactionOut(ORMModel):
     holding_id: uuid.UUID
     user_id: uuid.UUID
     idempotency_key: str | None
+    import_external_id: str | None
     side: str
     status: str
     order_id: str | None

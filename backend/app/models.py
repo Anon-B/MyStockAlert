@@ -76,6 +76,7 @@ class PortfolioTransaction(Base):
     executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    import_external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 class WatchlistItem(Base):
     __tablename__ = "watchlist_items"

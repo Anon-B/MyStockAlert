@@ -291,3 +291,6 @@ input, select, textarea {
   .ms-card-body { padding: 18px; }
   .ms-table th, .ms-table td { padding-left: 10px; padding-right: 10px; }
 }
+
+/* Phase 2 Data Portability */
+.ms-button-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.ms-muted{color:var(--ms-text-muted,#718096);font-size:13px;margin:0 0 12px}.ms-import-preview{display:flex;flex-direction:column;gap:7px;margin-top:12px;padding:14px;border:1px solid var(--ms-border,rgba(100,116,139,.22));border-radius:12px;background:var(--ms-surface-subtle,rgba(255,255,255,.04))}.ms-import-preview strong{margin-bottom:2px}.ms-import-preview small{line-height:1.4}.ms-import-preview .ms-button-row{margin-top:5px}
