@@ -15,7 +15,8 @@ def test_portfolio_crud(client, demo_user, db):
     item_id = created.json()["id"]
     updated = client.put(f"/api/v1/portfolio/{item_id}", json={**payload, "quantity": 20})
     assert updated.status_code == 200
-    assert updated.json()["quantity"] == "20.00000000"
+    # Holdings are transaction-derived; Portfolio PUT updates metadata only.
+    assert updated.json()["quantity"] == "10.00000000"
     assert client.delete(f"/api/v1/portfolio/{item_id}").status_code == 204
 
 

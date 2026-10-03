@@ -1,0 +1,41 @@
+# Improvement Phase 1 Test Report — 2026-10-04
+
+## Scope
+Core Reliability for private/internal 2–3 person use.
+
+## Implemented
+- Inline form errors for Portfolio, transactions and Watchlist.
+- Duplicate-submit guard and loading state on save actions.
+- Transaction validation retained: quantity/price required; quantity max 7 decimals.
+- Watchlist requires at least one alert condition.
+- Settings save errors use inline status messaging instead of native browser alert.
+- Quote freshness remains visible as latest/delayed and Watchlist uses cached current quote data.
+- Updated E2E smoke script for authenticated API.
+- Updated stale automated tests to match transaction-derived Portfolio architecture.
+
+## Automated Verification
+- Frontend smoke test: PASS
+- Frontend production build + type/lint checks: PASS
+- Backend pytest: PASS — 31 passed
+- Worker pytest: PASS — 2 passed
+- E2E smoke: PASS
+- git diff --check: PASS
+- Native alert() usage in frontend/app/page.tsx: 0
+
+## Live API Verification
+- Yahoo provider health: TH PASS, US PASS.
+- Market status: TH/US correctly reported closed for 2026-10-04.
+- Live quote refresh through worker tested with PTT and AAPL.
+- Quote cache returned TH PTT 41.50 THB and US AAPL 333.69 USD from Yahoo; both correctly marked stale because provider timestamps were from the prior market session.
+- Unique temporary quote-tracking records were removed after test.
+- Existing manual/team data was not intentionally cleared; QA records created for this test were uniquely identified and removed.
+
+## Notes
+- Quote architecture is cache-first: worker refreshes provider data and the public quote API reads the durable cache.
+- Because testing occurred on a market-closed weekend, quote timestamps correctly remained stale rather than pretending to be live.
+- Browser click-level re-test of the newly changed inline-validation UI was not completed through the available remote browser automation interface; frontend build/smoke and API/E2E verification passed.
+
+## Result
+IMPLEMENTATION: COMPLETE
+QA: CONDITIONAL PASS
+Reason for conditional status: browser-level manual re-test of the newly changed validation controls remains outstanding.

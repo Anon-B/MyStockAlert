@@ -846,12 +846,23 @@ function Portfolio({
   });
   const [showFees, setShowFees] = useState(false),
     [txs, setTxs] = useState<any[]>([]),
-    [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+    [deleteTarget, setDeleteTarget] = useState<string | null>(null),
+    [saving, setSaving] = useState(false),
+    [formError, setFormError] = useState("");
   const reset = () => {
+    if (saving) return;
     setMode(null);
     setF(empty);
+    setFormError("");
   };
   async function save() {
+    if (saving) return;
+    setFormError("");
+    if (!f.symbol) {
+      setFormError("กรุณาเลือกหุ้นก่อนบันทึก");
+      return;
+    }
+    setSaving(true);
     const url =
       mode === "edit"
         ? `${API}/api/v1/portfolio/${f.id}`
@@ -866,7 +877,12 @@ function Portfolio({
         enabled: f.enabled,
       }),
     });
-    if (!r.ok) return alert("บันทึก Portfolio ไม่สำเร็จ");
+    if (!r.ok) {
+      setFormError("บันทึก Portfolio ไม่สำเร็จ");
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
     reset();
     reload();
   }
@@ -897,7 +913,8 @@ function Portfolio({
     });
   }
   async function saveTx() {
-    if (!selected) return;
+    if (!selected || saving) return;
+    setFormError("");
     const n = (v: any) => (v === "" || v == null ? 0 : Number(v));
     const body = {
       side: tx.side,
@@ -916,10 +933,17 @@ function Portfolio({
       fx_rate: tx.fx_rate === "" ? null : n(tx.fx_rate),
       executed_at: tx.executed_at || null,
     };
-    if (!body.quantity || !body.execution_price) return alert("กรุณาระบุจำนวนและราคา");
-    if (!/^\d+(\.\d{1,7})?$/.test(String(tx.quantity))) return alert("จำนวนหุ้นต้องมีทศนิยมไม่เกิน 7 ตำแหน่ง");
+    if (!body.quantity || !body.execution_price) {
+      setFormError("กรุณาระบุจำนวนและราคา");
+      return;
+    }
+    if (!/^\d+(\.\d{1,7})?$/.test(String(tx.quantity))) {
+      setFormError("จำนวนหุ้นต้องมีทศนิยมไม่เกิน 7 ตำแหน่ง");
+      return;
+    }
     const idem = tx.idempotency_key || crypto.randomUUID();
     if (!tx.idempotency_key) setTx((v: any) => ({ ...v, idempotency_key: idem }));
+    setSaving(true);
     const r = await apiFetch(
       `${API}/api/v1/portfolio/${selected.id}/transactions`,
       {
@@ -928,7 +952,12 @@ function Portfolio({
         body: JSON.stringify(body),
       },
     );
-    if (!r.ok) return alert("บันทึกรายการไม่สำเร็จ");
+    if (!r.ok) {
+      setFormError("บันทึกรายการไม่สำเร็จ");
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
     const rr = await apiFetch(
       `${API}/api/v1/portfolio/${selected.id}/transactions`,
     );
@@ -1007,12 +1036,13 @@ function Portfolio({
             }
           />
             </div>
+          {formError && <div className="ms-banner ms-banner-error" role="alert">{formError}</div>}
           <div className="ms-modal-form-actions">
-            <button className="ms-button ms-button-light" onClick={reset}>
+            <button className="ms-button ms-button-light" onClick={reset} disabled={saving}>
               ยกเลิก
             </button>
-            <button className="ms-button" onClick={save}>
-              {mode === "edit" ? "บันทึก" : "เพิ่มหุ้น"}
+            <button className="ms-button" onClick={save} disabled={saving}>
+              {saving ? "กำลังบันทึก..." : mode === "edit" ? "บันทึก" : "เพิ่มหุ้น"}
             </button>
           </div>
         </div>
@@ -1184,7 +1214,8 @@ function Portfolio({
             </div>
             <button
               className="ms-button ms-button-light"
-              onClick={() => setSelected(null)}
+              onClick={() => { if (!saving) { setSelected(null); setFormError(""); } }}
+              disabled={saving}
             >
               ปิด
             </button>
@@ -1239,6 +1270,7 @@ function Portfolio({
               ＋ เพิ่มรายการ
             </button>
           </div>
+          {formError && <div className="ms-banner ms-banner-error" role="alert">{formError}</div>}
           <div className="ms-trade-form ms-detail-trade">
             <div className="ms-side-toggle">
               <button
@@ -1340,8 +1372,8 @@ function Portfolio({
                 </strong>
               </div>
             </div>
-            <button className="ms-button" onClick={saveTx}>
-              บันทึก
+            <button className="ms-button" onClick={saveTx} disabled={saving}>
+              {saving ? "กำลังบันทึก..." : "บันทึก"}
             </button>
           </div>
           <div className="ms-detail-edit">
@@ -1496,14 +1528,22 @@ function Watchlist({
   const [lowerMode, setLowerMode] = useState<"percent" | "price">("percent");
   const [edit, setEdit] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false),
-    [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+    [deleteTarget, setDeleteTarget] = useState<string | null>(null),
+    [saving, setSaving] = useState(false),
+    [formError, setFormError] = useState("");
   async function save() {
+    if (saving) return;
+    setFormError("");
     // The active condition is determined by the value the user entered.
     // Do not rely on the mode state here: entering a price clears the percent field,
     // and vice versa. This keeps the UI validation in sync with the actual form data.
     const hasUpper = f.upper_percent !== "" || f.upper_price !== "";
     const hasLower = f.lower_percent !== "" || f.lower_price !== "";
-    if (!hasUpper && !hasLower) return alert("กรุณากำหนดเงื่อนไขแจ้งเตือนอย่างน้อย 1 รายการ");
+    if (!hasUpper && !hasLower) {
+      setFormError("กรุณากำหนดเงื่อนไขแจ้งเตือนอย่างน้อย 1 รายการ");
+      return;
+    }
+    setSaving(true);
     const body = {
       ...f,
       upper_percent: f.upper_percent !== "" ? Number(f.upper_percent) : null,
@@ -1520,7 +1560,12 @@ function Watchlist({
         body: JSON.stringify(body),
       },
     );
-    if (!r.ok) return alert("บันทึก Watchlist ไม่สำเร็จ");
+    if (!r.ok) {
+      setFormError("บันทึก Watchlist ไม่สำเร็จ");
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
     setF(empty);
     setEdit(null);
     setShowForm(false);
@@ -1546,6 +1591,7 @@ function Watchlist({
           onClick={() => {
             setEdit("new");
             setF(empty);
+            setFormError("");
             setShowForm(true);
           }}
         >
@@ -1562,8 +1608,9 @@ function Watchlist({
                 <h2>{edit === "new" ? "เพิ่ม Watchlist" : "แก้ไข Watchlist"}</h2>
                 <p>เลือกหุ้นและกำหนดเงื่อนไขแจ้งเตือนราคา</p>
               </div>
-              <button className="ms-button ms-button-light" onClick={() => { setEdit(null); setF(empty); setShowForm(false); }} aria-label="ปิด">✕</button>
+              <button className="ms-button ms-button-light" onClick={() => { if (!saving) { setEdit(null); setF(empty); setFormError(""); setShowForm(false); } }} aria-label="ปิด" disabled={saving}>✕</button>
             </div>
+            {formError && <div className="ms-banner ms-banner-error" role="alert">{formError}</div>}
           <Form>
             <StockPicker
               market={f.market}
@@ -1634,15 +1681,18 @@ function Watchlist({
               <button
                 className="ms-button ms-button-light"
                 onClick={() => {
+                  if (saving) return;
                   setEdit(null);
                   setF(empty);
+                  setFormError("");
                   setShowForm(false);
                 }}
+                disabled={saving}
               >
                 ยกเลิก
               </button>
-              <button className="ms-button" onClick={save}>
-                {edit === "new" ? "＋ เพิ่ม Watchlist" : "บันทึกการแก้ไข"}
+              <button className="ms-button" onClick={save} disabled={saving}>
+                {saving ? "กำลังบันทึก..." : edit === "new" ? "＋ เพิ่ม Watchlist" : "บันทึกการแก้ไข"}
               </button>
             </div>
           </Form>
@@ -1830,8 +1880,12 @@ function Settings({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: v }),
     });
-    if (r.ok) reload();
-    else alert("บันทึกไม่สำเร็จ");
+    if (r.ok) {
+      setSyncMessage("✓ บันทึกการตั้งค่าแล้ว");
+      reload();
+    } else {
+      setSyncMessage("⚠ บันทึกการตั้งค่าไม่สำเร็จ");
+    }
   }
   async function syncStocks() {
     setBusy("stocks");

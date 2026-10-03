@@ -19,7 +19,7 @@ def test_yahoo_provider_th_mapping(monkeypatch):
             return self
         async def __aexit__(self, *args):
             return False
-        async def get(self, url, params):
+        async def get(self, url, params, **kwargs):
             assert url.endswith("/ABC.BK")
             assert params["interval"] == "1m"
             return Response()
@@ -46,7 +46,7 @@ def test_yahoo_provider_us_mapping(monkeypatch):
             return self
         async def __aexit__(self, *args):
             return False
-        async def get(self, url, params):
+        async def get(self, url, params, **kwargs):
             assert url.endswith("/AAPL")
             return Response()
 

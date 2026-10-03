@@ -18,11 +18,13 @@ class FakeClient:
         return self
     async def __aexit__(self, *args):
         return False
-    async def get(self, url):
-        assert url.endswith("/api/v1/market/quotes")
+    async def get(self, url, **kwargs):
+        assert url.endswith("/api/v1/internal/market/quotes")
+        assert "X-Worker-Token" in kwargs.get("headers", {})
         return FakeResponse([{"symbol": "TESTPH6"}])
-    async def post(self, url):
-        assert url.endswith("/api/v1/alerts/evaluate")
+    async def post(self, url, **kwargs):
+        assert url.endswith("/api/v1/internal/alerts/evaluate")
+        assert "X-Worker-Token" in kwargs.get("headers", {})
         return FakeResponse({"created": 2})
 
 
@@ -36,7 +38,7 @@ def test_poll_market_success(monkeypatch, capsys):
 
 def test_poll_market_failure(monkeypatch, capsys):
     class BrokenClient(FakeClient):
-        async def get(self, url):
+        async def get(self, url, **kwargs):
             raise RuntimeError("backend unavailable")
     monkeypatch.setattr(main.httpx, "AsyncClient", lambda timeout: BrokenClient())
     asyncio.run(main.poll_market())

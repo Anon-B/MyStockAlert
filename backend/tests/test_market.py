@@ -31,7 +31,14 @@ def test_quotes_fetch_and_cache(client, demo_user, db, monkeypatch):
                            quantity=1, average_cost=100, currency="THB", enabled=True)
     db.add(row)
     db.commit()
-    monkeypatch.setattr(main, "YahooProvider", lambda: FakeProvider())
+    # The public endpoint reads the durable quote cache. The worker/provider refreshes that cache.
+    cached_quote = MarketQuote(
+        market="TH", symbol=symbol, price=Decimal("123.45"), currency="THB",
+        change_percent=Decimal("2.5"), source="mock",
+        quoted_at=datetime.now(timezone.utc),
+    )
+    db.add(cached_quote)
+    db.commit()
     first = client.get("/api/v1/market/quotes")
     assert first.status_code == 200
     assert first.json()[0]["source"] == "mock"
