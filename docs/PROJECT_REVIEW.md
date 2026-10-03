@@ -20,6 +20,9 @@ Version `v1.0.0` is tagged and published to the public GitHub repository. Local 
 - worker polling
 - automated tests and E2E smoke
 
+## Latest UX Direction
+Portfolio → Transaction → Watchlist → Alert → Settings now follows the mental model: search → select → enter only required data → save. Technical state is progressively hidden from normal users.
+
 ## Important Gaps
 ### Authentication
 Current API uses a seeded `demo` user.

@@ -1,26 +1,28 @@
 import uuid
 from decimal import Decimal
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class PortfolioCreate(BaseModel):
+    """Create a portfolio holding shell; position values come from transactions."""
     market: str
     symbol: str
-    quantity: Decimal = Field(gt=0)
-    average_cost: Decimal = Field(gt=0)
     currency: str
     enabled: bool = True
+    quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    average_cost: Decimal = Field(default=Decimal("0"), ge=0)
 
 class PortfolioUpdate(PortfolioCreate):
     pass
 
 class PortfolioTransactionCreate(BaseModel):
     side: str
+    status: str = "FILLED"
     order_id: str | None = None
-    quantity: Decimal = Field(gt=0)
+    quantity: Decimal = Field(gt=0, decimal_places=7)
     execution_price: Decimal = Field(gt=0)
     commission: Decimal = Field(default=0, ge=0)
     trading_fee: Decimal = Field(default=0, ge=0)
@@ -31,16 +33,22 @@ class PortfolioTransactionCreate(BaseModel):
     taf_fee: Decimal = Field(default=0, ge=0)
     vat: Decimal = Field(default=0, ge=0)
     fx_rate: Decimal | None = Field(default=None, gt=0)
+    net_amount_thb: Decimal | None = Field(default=None, ge=0)
+    trading_value_thb: Decimal | None = Field(default=None, ge=0)
     executed_at: datetime | None = None
 
 class PortfolioTransactionOut(ORMModel):
     id: uuid.UUID
     holding_id: uuid.UUID
+    user_id: uuid.UUID
+    idempotency_key: str | None
     side: str
+    status: str
     order_id: str | None
     quantity: Decimal
     execution_price: Decimal
     trading_value: Decimal
+    trading_value_thb: Decimal | None
     commission: Decimal
     trading_fee: Decimal
     clearing_fee: Decimal
@@ -49,6 +57,7 @@ class PortfolioTransactionOut(ORMModel):
     sec_fee: Decimal
     taf_fee: Decimal
     vat: Decimal
+    net_amount_thb: Decimal | None
     fx_rate: Decimal | None
     net_amount: Decimal
     currency: str
@@ -74,6 +83,16 @@ class WatchlistCreate(BaseModel):
     lower_percent: Decimal | None = Field(default=None, lt=0)
     upper_price: Decimal | None = Field(default=None, gt=0)
     lower_price: Decimal | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_rules(self):
+        if self.upper_percent is None and self.upper_price is None and self.lower_percent is None and self.lower_price is None:
+            raise ValueError("ต้องกำหนดเงื่อนไขแจ้งเตือนอย่างน้อย 1 รายการ")
+        if self.upper_percent is not None and self.upper_price is not None:
+            raise ValueError("เงื่อนไขด้านบนเลือกได้อย่างใดอย่างหนึ่งระหว่าง % หรือราคา")
+        if self.lower_percent is not None and self.lower_price is not None:
+            raise ValueError("เงื่อนไขด้านล่างเลือกได้อย่างใดอย่างหนึ่งระหว่าง % หรือราคา")
+        return self
 
 class WatchlistUpdate(WatchlistCreate):
     pass
@@ -110,6 +129,8 @@ class AlertHistoryOut(ORMModel):
     retry_count: int
     last_error: str | None
     status: str
+    provider: str | None = None
+    delivery_status: str | None = None
 
 class StockSearchOut(BaseModel):
     symbol: str

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .models import AlertHistory, AlertOutbox, AlertRule, MarketQuote, PortfolioHolding, User, WatchlistItem
 from .market.calendar import market_status
@@ -43,13 +44,19 @@ def evaluate_watchlist(db: Session, user: User, now: datetime | None = None) -> 
         # Keep the idempotency key stable for one armed cycle, but allow a
         # new alert after the rule has been re-armed in the same minute.
         key = f"watch:{user.id}:{item.id}:{alert_type}:{previous_trigger}"
-        row = AlertHistory(user_id=user.id, symbol=item.symbol, market=item.market, alert_type=alert_type,
-            reference_price=None, trigger_price=quote.price, change_percent=change,
-            message=f"{item.market} {item.symbol} threshold price={price} change={change:.2f}%" if change is not None else f"{item.market} {item.symbol} price={price}", triggered_at=now,
-            idempotency_key=key, status="pending")
-        db.add(row); db.flush()
-        db.add(AlertOutbox(alert_history_id=row.id, channel="line"))
-        created.append(row)
+        try:
+            with db.begin_nested():
+                row = AlertHistory(user_id=user.id, symbol=item.symbol, market=item.market, alert_type=alert_type,
+                    reference_price=None, trigger_price=quote.price, change_percent=change,
+                    message=f"{item.market} {item.symbol} threshold price={price} change={change:.2f}%" if change is not None else f"{item.market} {item.symbol} price={price}", triggered_at=now,
+                    idempotency_key=key, status="pending", provider="line", delivery_status="PENDING")
+                db.add(row); db.flush()
+                db.add(AlertOutbox(alert_history_id=row.id, channel="line"))
+            created.append(row)
+        except IntegrityError:
+            # Another worker won the same armed cycle. The unique idempotency key
+            # is the database-level final guard against duplicate logical alerts.
+            continue
     return created
 
 
@@ -85,7 +92,7 @@ def evaluate_portfolio_session(db: Session, user: User, now: datetime | None = N
             row = AlertHistory(user_id=user.id, symbol=holding.symbol, market=market, alert_type=alert_type,
                 reference_price=holding.average_cost, trigger_price=quote.price, change_percent=change,
                 message=f"{market} {holding.symbol} portfolio {alert_type} P/L {change:.2f}%", triggered_at=now,
-                idempotency_key=f"{key}:{holding.symbol}", status="pending")
+                idempotency_key=f"{key}:{holding.symbol}", status="pending", provider="line", delivery_status="PENDING")
             db.add(row); db.flush()
             db.add(AlertOutbox(alert_history_id=row.id, channel="line")); created.append(row)
     return created

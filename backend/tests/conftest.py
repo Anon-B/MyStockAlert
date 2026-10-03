@@ -5,13 +5,18 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from app.db import SessionLocal
-from app.main import app
+from app.main import app, current_user
 from app.models import AlertHistory, AlertOutbox, AlertRule, MarketQuote, PortfolioHolding, User, WatchlistItem
 
 @pytest.fixture
 def client():
+    session = SessionLocal()
+    user = session.scalar(select(User).where(User.username == "demo"))
+    session.close()
+    app.dependency_overrides[current_user] = lambda: user
     with TestClient(app) as value:
         yield value
+    app.dependency_overrides.pop(current_user, None)
 
 @pytest.fixture
 def db():
