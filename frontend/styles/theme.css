@@ -865,7 +865,7 @@ body.ms-dark-premium-root .ms-button-light:disabled { opacity:.35; }
   body.ms-dark-premium-root #__next { min-height:100vh; background-color:#080b12 !important; }
 }
 
-/* Desktop dashboard scrolling: keep primary sidebar fixed while only content scrolls. */
+/* Desktop dashboard scrolling: fixed sidebar, scrollable content, preserve original proportions. */
 @media (min-width: 901px) {
   html,
   body {
@@ -876,22 +876,41 @@ body.ms-dark-premium-root .ms-button-light:disabled { opacity:.35; }
   .ms-shell {
     height: 100vh;
     min-height: 0;
+    padding: 16px;
+    padding-left: calc(var(--ms-sidebar-width) + 16px);
   }
 
   .ms-sidebar {
     position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
+    top: 16px;
+    left: 16px;
+    width: var(--ms-sidebar-width);
+    height: calc(100vh - 32px);
     min-height: 0;
     overflow: hidden;
   }
 
   .ms-main {
-    height: 100vh;
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    height: calc(100vh - 32px);
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    margin: 0;
+    padding: 26px 28px 40px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .ms-shell {
+    padding-left: 236px;
+  }
+
+  .ms-sidebar {
+    width: 220px;
   }
 }
 
@@ -905,6 +924,15 @@ body.ms-dark-premium-root .ms-button-light:disabled { opacity:.35; }
   .ms-shell {
     height: auto;
     min-height: 100vh;
+    padding-left: 0;
+  }
+
+  .ms-sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    min-height: auto;
+    overflow: visible;
   }
 
   .ms-main {
