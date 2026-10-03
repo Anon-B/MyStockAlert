@@ -46,3 +46,16 @@ Centralized in `frontend/styles/theme.css` under `--ms-*` variables.
 - current quote and stale state must remain understandable
 - destructive actions require confirmation
 - UI should not expose internal provider errors unless useful for diagnosis
+
+
+## UX Rules — v1.0.0 dev refinement
+- Primary navigation contains only Dashboard, Portfolio, Watchlist, Alerts and Settings.
+- Each main page has one primary action: `+ เพิ่มหุ้น`, `+ เพิ่ม Watchlist`, or transaction save inside the selected holding.
+- Portfolio and Watchlist share the same StockPicker autocomplete backed by Stock Master/search API.
+- Forms use explicit labels; placeholder text is supplementary only.
+- Mobile forms collapse to one column.
+- Empty states explain the next action instead of saying only “No data”.
+- Delete uses an application dialog rather than browser `confirm()`.
+- Alert history shows user-facing statuses: `รอส่ง`, `ส่งแล้ว`, `ส่งไม่สำเร็จ`; retry/internal state is hidden from the primary table.
+- Settings is grouped into `การแจ้งเตือน`, `การแสดงผล`, and `ระบบ`; technical details remain secondary.
+- Technical implementation details are not exposed in primary user workflows.
