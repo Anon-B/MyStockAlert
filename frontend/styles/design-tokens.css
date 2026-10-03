@@ -1,0 +1,293 @@
+/* MyStockAlert — Canonical Design System Tokens
+ * Single source of truth for shared UI primitives.
+ * Business logic must stay out of this file.
+ */
+
+:root {
+  /* Color */
+  --ms-bg: #f5f7fa;
+  --ms-surface: #ffffff;
+  --ms-surface-subtle: #f8fafc;
+  --ms-surface-hover: #f1f5f9;
+  --ms-surface-muted: #f2f4f7;
+
+  --ms-border: #e2e8f0;
+  --ms-border-strong: #cbd5e1;
+  --ms-divider: #eaecf0;
+
+  --ms-text: #172033;
+  --ms-text-secondary: #475467;
+  --ms-text-muted: #667085;
+  --ms-text-disabled: #98a2b3;
+
+  --ms-primary: #172033;
+  --ms-primary-hover: #263248;
+  --ms-focus-ring: rgba(23, 32, 51, .16);
+
+  --ms-positive: #067647;
+  --ms-positive-bg: #ecfdf3;
+  --ms-negative: #b42318;
+  --ms-negative-bg: #fef3f2;
+  --ms-warning: #b54708;
+  --ms-warning-bg: #fffaeb;
+  --ms-info: #175cd3;
+  --ms-info-bg: #eff8ff;
+  --ms-pending: #6941c6;
+  --ms-pending-bg: #f4f3ff;
+  --ms-cancelled: #667085;
+  --ms-cancelled-bg: #f2f4f7;
+
+  /* Typography */
+  --ms-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ms-font-mono: "JetBrains Mono", "SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+
+  --ms-font-xs: 12px;
+  --ms-font-sm: 13px;
+  --ms-font-md: 14px;
+  --ms-font-lg: 16px;
+  --ms-font-xl: 20px;
+  --ms-font-2xl: 28px;
+  --ms-font-3xl: 36px;
+
+  --ms-leading-tight: 1.2;
+  --ms-leading-normal: 1.5;
+  --ms-leading-relaxed: 1.6;
+
+  --ms-weight-regular: 400;
+  --ms-weight-medium: 500;
+  --ms-weight-semibold: 600;
+  --ms-weight-bold: 700;
+
+  /* 8pt spacing scale */
+  --ms-space-1: 4px;
+  --ms-space-2: 8px;
+  --ms-space-3: 12px;
+  --ms-space-4: 16px;
+  --ms-space-5: 20px;
+  --ms-space-6: 24px;
+  --ms-space-8: 32px;
+  --ms-space-10: 40px;
+  --ms-space-12: 48px;
+  --ms-space-16: 64px;
+
+  /* Shape / elevation */
+  --ms-radius-sm: 8px;
+  --ms-radius-md: 12px;
+  --ms-radius-lg: 16px;
+  --ms-radius-pill: 999px;
+
+  --ms-shadow-sm: 0 1px 3px rgba(16, 24, 40, .06);
+  --ms-shadow-md: 0 8px 24px rgba(16, 24, 40, .08);
+  --ms-shadow-lg: 0 20px 48px rgba(16, 24, 40, .14);
+
+  /* Layout / controls */
+  --ms-sidebar-width: 248px;
+  --ms-content-max: 1440px;
+  --ms-control-sm: 32px;
+  --ms-control-md: 40px;
+  --ms-control-lg: 44px;
+  --ms-table-header-height: 48px;
+  --ms-table-row-height: 56px;
+}
+
+/* Global foundations */
+html { font-family: var(--ms-font-family); }
+body {
+  background: var(--ms-bg);
+  color: var(--ms-text);
+  font-size: var(--ms-font-md);
+  line-height: var(--ms-leading-normal);
+}
+button, input, select, textarea { font-family: inherit; }
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ms-info);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--ms-focus-ring);
+}
+
+/* Typography hierarchy */
+.ms-display { font-size: var(--ms-font-3xl); line-height: 44px; font-weight: var(--ms-weight-bold); letter-spacing: -.02em; }
+.ms-h1 { font-size: var(--ms-font-2xl); line-height: 36px; font-weight: var(--ms-weight-bold); letter-spacing: -.015em; }
+.ms-h2 { font-size: var(--ms-font-xl); line-height: 28px; font-weight: var(--ms-weight-bold); }
+.ms-h3 { font-size: var(--ms-font-lg); line-height: 24px; font-weight: var(--ms-weight-semibold); }
+.ms-h4 { font-size: var(--ms-font-md); line-height: 20px; font-weight: var(--ms-weight-semibold); }
+.ms-body-lg { font-size: var(--ms-font-lg); line-height: 24px; font-weight: var(--ms-weight-regular); }
+.ms-body { font-size: var(--ms-font-md); line-height: 22px; font-weight: var(--ms-weight-regular); }
+.ms-body-sm { font-size: var(--ms-font-sm); line-height: 20px; font-weight: var(--ms-weight-regular); }
+.ms-caption { font-size: var(--ms-font-xs); line-height: 18px; font-weight: var(--ms-weight-regular); }
+.ms-overline { font-size: 11px; line-height: 16px; font-weight: var(--ms-weight-bold); letter-spacing: .04em; text-transform: uppercase; }
+
+/* Financial numbers */
+.ms-financial,
+.ms-financial-mono,
+.ms-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+.ms-financial-mono {
+  font-family: var(--ms-font-mono);
+  white-space: nowrap;
+}
+.ms-numeric { text-align: right; }
+
+/* Semantic financial colors */
+.ms-positive, .ms-profit { color: var(--ms-positive); }
+.ms-negative, .ms-loss { color: var(--ms-negative); }
+.ms-warning { color: var(--ms-warning); }
+.ms-info { color: var(--ms-info); }
+.ms-positive-bg { background: var(--ms-positive-bg); }
+.ms-negative-bg { background: var(--ms-negative-bg); }
+.ms-warning-bg { background: var(--ms-warning-bg); }
+.ms-info-bg { background: var(--ms-info-bg); }
+
+/* Canonical card */
+.ms-card {
+  background: var(--ms-surface);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-lg);
+  box-shadow: var(--ms-shadow-sm);
+}
+.ms-card-header {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ms-space-5) var(--ms-space-6);
+  gap: var(--ms-space-4);
+}
+.ms-card-body { padding: var(--ms-space-6); }
+
+/* Controls */
+.ms-button {
+  min-height: var(--ms-control-md);
+  padding: 0 var(--ms-space-4);
+  border-radius: var(--ms-radius-sm);
+  font-size: var(--ms-font-md);
+  font-weight: var(--ms-weight-semibold);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+.ms-button:hover { transform: translateY(-1px); }
+.ms-button:active { transform: scale(.98); }
+input, select, textarea {
+  min-height: var(--ms-control-md);
+  border-radius: var(--ms-radius-sm);
+  border: 1px solid var(--ms-border-strong);
+}
+
+/* Badges */
+.ms-badge,
+.ms-market-badge,
+.ms-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 24px;
+  padding: 0 var(--ms-space-2);
+  border-radius: var(--ms-radius-pill);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: var(--ms-weight-semibold);
+  white-space: nowrap;
+}
+.ms-market-badge { background: var(--ms-surface-muted); color: var(--ms-text-secondary); }
+.ms-status-badge.positive { background: var(--ms-positive-bg); color: var(--ms-positive); }
+.ms-status-badge.negative { background: var(--ms-negative-bg); color: var(--ms-negative); }
+.ms-status-badge.warning { background: var(--ms-warning-bg); color: var(--ms-warning); }
+.ms-status-badge.info { background: var(--ms-info-bg); color: var(--ms-info); }
+.ms-status-badge.pending { background: var(--ms-pending-bg); color: var(--ms-pending); }
+.ms-status-badge.cancelled,
+.ms-status-badge.neutral { background: var(--ms-cancelled-bg); color: var(--ms-cancelled); }
+
+/* Table */
+.ms-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ms-table th {
+  height: var(--ms-table-header-height);
+  color: var(--ms-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: var(--ms-weight-semibold);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.ms-table th,
+.ms-table td {
+  padding: 0 var(--ms-space-4);
+  height: var(--ms-table-row-height);
+  border-bottom: 1px solid var(--ms-border);
+  vertical-align: middle;
+}
+.ms-table th.numeric,
+.ms-table td.numeric,
+.ms-table td:nth-child(n+3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ms-table tbody tr:hover { background: var(--ms-surface-hover); }
+
+/* Consistent financial rows */
+.ms-watch-item {
+  min-height: 64px;
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-surface);
+}
+.ms-watch-item + .ms-watch-item { margin-top: var(--ms-space-2); }
+.ms-watch-item-main { min-width: 0; min-height: 64px; padding: var(--ms-space-3) var(--ms-space-4); }
+.ms-watch-price strong,
+.ms-watch-change strong,
+.ms-watch-alert span,
+.ms-stock-price strong,
+.ms-stock-pnl strong,
+.ms-stock-change strong {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Equal-height grids */
+.ms-dashboard-summary,
+.ms-grid-4,
+.ms-grid-2 {
+  align-items: stretch;
+}
+.ms-dashboard-summary > *,
+.ms-grid-4 > *,
+.ms-grid-2 > * {
+  min-width: 0;
+  height: 100%;
+}
+
+/* Shared page spacing */
+.ms-dashboard-gap { margin-top: var(--ms-space-6); }
+.ms-empty { padding: var(--ms-space-8) var(--ms-space-6); }
+
+/* Dark theme */
+.ms-dark-premium {
+  --ms-bg: #0b1120;
+  --ms-surface: #111827;
+  --ms-surface-subtle: #172033;
+  --ms-surface-hover: #1e293b;
+  --ms-surface-muted: #172033;
+  --ms-border: #263248;
+  --ms-border-strong: #334155;
+  --ms-divider: #263248;
+  --ms-text: #f8fafc;
+  --ms-text-secondary: #cbd5e1;
+  --ms-text-muted: #94a3b8;
+  --ms-text-disabled: #64748b;
+  --ms-primary: #f8fafc;
+  --ms-primary-hover: #e2e8f0;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .ms-card-header { padding: 18px; }
+  .ms-card-body { padding: 18px; }
+  .ms-table th, .ms-table td { padding-left: 10px; padding-right: 10px; }
+}

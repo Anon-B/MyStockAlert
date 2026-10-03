@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { StatCard } from "../components/ui";
 
 type Holding = {
   id: string;
@@ -20,6 +21,11 @@ type Watch = {
   lower_percent: string | null;
   upper_price: string | null;
   lower_price: string | null;
+  current_price?: string | null;
+  current_currency?: string | null;
+  current_change_percent?: string | null;
+  quoted_at?: string | null;
+  quote_stale?: boolean;
 };
 type Alert = {
   id: string;
@@ -394,13 +400,7 @@ function Card({
   value: string;
   sub?: string;
 }) {
-  return (
-    <article className="ms-card ms-card-body">
-      <div className="ms-label">{label}</div>
-      <div className="ms-stat-value">{value}</div>
-      {sub && <div className="ms-section-subtitle">{sub}</div>}
-    </article>
-  );
+  return <StatCard label={label} value={value} sub={sub} />;
 }
 function Dashboard({
   h,
@@ -610,7 +610,12 @@ function WatchTable({
       {rows.map((x) => {
         const q = quotes?.find(
           (z) => z.market === x.market && z.symbol === x.symbol,
-        );
+        ) ?? (x.current_price != null ? {
+          market: x.market, symbol: x.symbol, price: x.current_price,
+          currency: x.current_currency || (x.market === "US" ? "USD" : "THB"),
+          change_percent: x.current_change_percent ?? null, source: "watchlist",
+          quoted_at: x.quoted_at || new Date().toISOString(), stale: Boolean(x.quote_stale),
+        } as Quote : undefined);
         const rules = [
           x.upper_percent != null ? "↑ " + pct(x.upper_percent) : null,
           x.lower_percent != null ? "↓ " + pct(x.lower_percent) : null,
@@ -702,10 +707,12 @@ function StockPicker({
   market,
   value,
   onChange,
+  onMarketChange,
 }: {
   market: string;
   value: string;
   onChange: (stock: StockSearch) => void;
+  onMarketChange?: (market: string) => void;
 }) {
   const [q, setQ] = useState(value),
     [results, setResults] = useState<StockSearch[]>([]),
@@ -741,16 +748,27 @@ function StockPicker({
     <div className="ms-stock-picker">
       <label>หุ้น</label>
       <div className="ms-stock-input-wrap">
-        <span>⌕</span>
+        <label className="ms-stock-market-select">
+          <span>ตลาด</span>
+          <select
+            aria-label="เลือกตลาดหุ้น"
+            value={market}
+            onChange={(e) => onMarketChange?.(e.target.value)}
+          >
+            <option value="TH">TH · หุ้นไทย</option>
+            <option value="US">US · หุ้นสหรัฐ</option>
+          </select>
+        </label>
+        <span className="ms-stock-search-icon">⌕</span>
         <input
-          aria-label="ค้นหาหุ้น"
+          aria-label={market === "US" ? "ค้นหาหุ้นสหรัฐ" : "ค้นหาหุ้นไทย"}
           value={q}
           onFocus={() => setOpen(true)}
           onChange={(e) => {
             setQ(e.target.value.toUpperCase());
             setOpen(true);
           }}
-          placeholder="ค้นหาชื่อหุ้นหรือ Symbol"
+          placeholder={market === "US" ? "ค้นหาหุ้นสหรัฐ เช่น AAPL, NVDA, MSFT" : "ค้นหาหุ้นไทย เช่น PTT, AOT, CPALL"}
         />
         {busy && <small>กำลังค้นหา...</small>}
       </div>
@@ -1552,6 +1570,9 @@ function Watchlist({
               value={f.symbol}
               onChange={(x) =>
                 setF({ ...f, symbol: x.symbol, market: x.market })
+              }
+              onMarketChange={(nextMarket) =>
+                setF({ ...f, market: nextMarket, symbol: "" })
               }
             />
             <div className="ms-watch-alert-group">

@@ -239,7 +239,9 @@ def list_watchlist(db: Session=Depends(get_db), user: User=Depends(current_user)
     result=[]
     for row in rows:
         rule=db.scalar(select(AlertRule).where(AlertRule.watchlist_item_id==row.id))
-        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None,"upper_price":rule.upper_price if rule else None,"lower_price":rule.lower_price if rule else None})
+        quote = db.scalar(select(MarketQuote).where(MarketQuote.market == row.market, MarketQuote.symbol == row.symbol))
+        quote_age = (datetime.now(timezone.utc) - quote.quoted_at).total_seconds() if quote else None
+        result.append({"id":row.id,"market":row.market,"symbol":row.symbol,"enabled":row.enabled,"upper_percent":rule.upper_percent if rule else None,"lower_percent":rule.lower_percent if rule else None,"upper_price":rule.upper_price if rule else None,"lower_price":rule.lower_price if rule else None,"current_price":quote.price if quote else None,"current_currency":quote.currency if quote else None,"current_change_percent":quote.change_percent if quote else None,"quoted_at":quote.quoted_at if quote else None,"quote_stale":quote is None or quote_age > 300})
     return result
 
 @app.post("/api/v1/watchlist", response_model=WatchlistOut, status_code=201)
@@ -429,30 +431,51 @@ async def provider_health():
             results.append({"market": market, "provider": "yahoo", "ok": False, "latency_ms": round((datetime.now(timezone.utc)-started).total_seconds()*1000, 1), "error": str(exc)})
     return results
 
-@app.get("/api/v1/market/quotes", response_model=list[QuoteOut])
-async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_user)):
-    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id==user.id, PortfolioHolding.enabled.is_(True))).all()
-    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id==user.id, WatchlistItem.enabled.is_(True))).all()
+@app.get("/api/v1/internal/market/quotes")
+async def refresh_market_quotes_internal(request: Request, db: Session=Depends(get_db)):
+    expected = os.getenv("WORKER_TOKEN", "")
+    supplied = request.headers.get("X-Worker-Token", "")
+    if not expected or supplied != expected:
+        raise HTTPException(401, "worker authentication required")
+
+    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.enabled.is_(True))).all()
+    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.enabled.is_(True))).all()
     symbols = {(x.market, x.symbol) for x in [*holdings, *watches]}
     provider = YahooProvider()
-    now = datetime.now(timezone.utc)
-    output=[]
+    refreshed = 0
+    failed = 0
     for market, symbol in sorted(symbols):
         try:
             q = await provider.quote(market, symbol)
-            row = db.scalar(select(MarketQuote).where(MarketQuote.market==market, MarketQuote.symbol==symbol))
+            row = db.scalar(select(MarketQuote).where(MarketQuote.market == market, MarketQuote.symbol == symbol))
             if not row:
                 row = MarketQuote(market=market, symbol=symbol)
                 db.add(row)
-            row.price=q.price; row.currency=q.currency; row.change_percent=q.change_percent
-            row.source=q.source; row.quoted_at=q.timestamp
-            db.commit(); db.refresh(row)
+            row.price = q.price
+            row.currency = q.currency
+            row.change_percent = q.change_percent
+            row.source = q.source
+            row.quoted_at = q.timestamp
+            refreshed += 1
         except Exception:
-            row = db.scalar(select(MarketQuote).where(MarketQuote.market==market, MarketQuote.symbol==symbol))
-            if not row:
-                continue
+            failed += 1
+    db.commit()
+    return {"status": "ok", "tracked": len(symbols), "refreshed": refreshed, "failed": failed, "quoted_at": datetime.now(timezone.utc)}
+
+
+@app.get("/api/v1/market/quotes", response_model=list[QuoteOut])
+async def market_quotes(db: Session=Depends(get_db), user: User=Depends(current_user)):
+    holdings = db.scalars(select(PortfolioHolding).where(PortfolioHolding.user_id == user.id, PortfolioHolding.enabled.is_(True))).all()
+    watches = db.scalars(select(WatchlistItem).where(WatchlistItem.user_id == user.id, WatchlistItem.enabled.is_(True))).all()
+    symbols = {(x.market, x.symbol) for x in [*holdings, *watches]}
+    now = datetime.now(timezone.utc)
+    output = []
+    for market, symbol in sorted(symbols):
+        row = db.scalar(select(MarketQuote).where(MarketQuote.market == market, MarketQuote.symbol == symbol))
+        if not row:
+            continue
         age = (now - row.quoted_at).total_seconds()
-        output.append({"market":row.market,"symbol":row.symbol,"price":row.price,"currency":row.currency,"change_percent":row.change_percent,"source":row.source,"quoted_at":row.quoted_at,"stale":age > 300})
+        output.append({"market": row.market, "symbol": row.symbol, "price": row.price, "currency": row.currency, "change_percent": row.change_percent, "source": row.source, "quoted_at": row.quoted_at, "stale": age > 300})
     return output
 
 

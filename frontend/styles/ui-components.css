@@ -1,0 +1,86 @@
+/* MyStockAlert — reusable UI component styles */
+.ms-stat-card {
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--ms-space-2);
+}
+.ms-stat-value {
+  font-size: var(--ms-font-2xl);
+  line-height: 36px;
+  font-weight: var(--ms-weight-bold);
+  letter-spacing: 0;
+}
+.ms-text-muted { color: var(--ms-text-muted); }
+.ms-text-secondary { color: var(--ms-text-secondary); }
+
+.ms-skeleton {
+  display: block;
+  border-radius: var(--ms-radius-sm);
+  background: linear-gradient(90deg, var(--ms-surface-muted) 25%, var(--ms-surface-hover) 50%, var(--ms-surface-muted) 75%);
+  background-size: 200% 100%;
+  animation: ms-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes ms-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.ms-financial-mono {
+  font-family: var(--ms-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+.ms-status-badge { flex: 0 0 auto; }
+.ms-table td:last-child { text-align: center; }
+.ms-table td:nth-child(1) { text-align: center; }
+.ms-table td:nth-child(2) { text-align: left; }
+
+.ms-stock-input-wrap {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--ms-border-strong);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-surface);
+}
+.ms-stock-market-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border-right: 1px solid var(--ms-border);
+  color: var(--ms-text-secondary);
+  font-size: 12px;
+  font-weight: var(--ms-weight-semibold);
+}
+.ms-stock-market-select select {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ms-text-primary);
+  font-weight: var(--ms-weight-semibold);
+  cursor: pointer;
+  padding: 8px 2px;
+}
+.ms-stock-search-icon {
+  flex: 0 0 auto;
+  padding-left: 10px;
+  color: var(--ms-text-muted);
+}
+.ms-stock-input-wrap > input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0 10px;
+}
+.ms-stock-input-wrap > small {
+  flex: 0 0 auto;
+  padding-right: 10px;
+  color: var(--ms-text-muted);
+}

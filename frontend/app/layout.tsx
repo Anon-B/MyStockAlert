@@ -1,4 +1,6 @@
 import "../styles/theme.css";
+import "../styles/design-tokens.css";
+import "../styles/ui-components.css";
 import type { ReactNode } from "react";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
