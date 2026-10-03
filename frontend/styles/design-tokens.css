@@ -5,33 +5,33 @@
 
 :root {
   /* Color */
-  --ms-bg: #f5f7fa;
-  --ms-surface: #ffffff;
-  --ms-surface-subtle: #f8fafc;
-  --ms-surface-hover: #f1f5f9;
-  --ms-surface-muted: #f2f4f7;
+  --ms-bg: #eef2f7;
+  --ms-surface: rgba(255,255,255,.68);
+  --ms-surface-subtle: rgba(255,255,255,.34);
+  --ms-surface-hover: rgba(255,255,255,.62);
+  --ms-surface-muted: rgba(255,255,255,.46);
 
-  --ms-border: #e2e8f0;
-  --ms-border-strong: #cbd5e1;
-  --ms-divider: #eaecf0;
+  --ms-border: rgba(255,255,255,.72);
+  --ms-border-strong: rgba(148,163,184,.24);
+  --ms-divider: rgba(148,163,184,.16);
 
   --ms-text: #172033;
-  --ms-text-secondary: #475467;
-  --ms-text-muted: #667085;
+  --ms-text-secondary: #667085;
+  --ms-text-muted: #98a2b3;
   --ms-text-disabled: #98a2b3;
 
   --ms-primary: #172033;
   --ms-primary-hover: #263248;
   --ms-focus-ring: rgba(23, 32, 51, .16);
 
-  --ms-positive: #067647;
-  --ms-positive-bg: #ecfdf3;
-  --ms-negative: #b42318;
-  --ms-negative-bg: #fef3f2;
-  --ms-warning: #b54708;
-  --ms-warning-bg: #fffaeb;
-  --ms-info: #175cd3;
-  --ms-info-bg: #eff8ff;
+  --ms-positive: #12a66a;
+  --ms-positive-bg: rgba(18,166,106,.10);
+  --ms-negative: #e05252;
+  --ms-negative-bg: rgba(224,82,82,.10);
+  --ms-warning: #d99a16;
+  --ms-warning-bg: rgba(217,154,22,.10);
+  --ms-info: #3478f6;
+  --ms-info-bg: rgba(52,120,246,.10);
   --ms-pending: #6941c6;
   --ms-pending-bg: #f4f3ff;
   --ms-cancelled: #667085;
@@ -74,11 +74,12 @@
   --ms-radius-sm: 8px;
   --ms-radius-md: 12px;
   --ms-radius-lg: 16px;
+  --ms-glass-blur: blur(22px);
   --ms-radius-pill: 999px;
 
-  --ms-shadow-sm: 0 1px 3px rgba(16, 24, 40, .06);
-  --ms-shadow-md: 0 8px 24px rgba(16, 24, 40, .08);
-  --ms-shadow-lg: 0 20px 48px rgba(16, 24, 40, .14);
+  --ms-shadow-sm: 0 8px 24px rgba(31,41,55,.06);
+  --ms-shadow-md: 0 18px 48px rgba(31,41,55,.10);
+  --ms-shadow-lg: 0 20px 48px rgba(31,41,55,.14);
 
   /* Layout / controls */
   --ms-sidebar-width: 248px;
@@ -93,7 +94,12 @@
 /* Global foundations */
 html { font-family: var(--ms-font-family); }
 body {
-  background: var(--ms-bg);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(119,168,255,.18), transparent 28%),
+    radial-gradient(circle at 92% 10%, rgba(115,235,190,.14), transparent 26%),
+    linear-gradient(135deg,#f5f7fa 0%,#e9eef5 100%);
+  background-attachment: fixed;
   color: var(--ms-text);
   font-size: var(--ms-font-md);
   line-height: var(--ms-leading-normal);
