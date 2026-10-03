@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -22,7 +22,7 @@ class PortfolioTransactionCreate(BaseModel):
     side: str
     status: str = "FILLED"
     order_id: str | None = None
-    quantity: Decimal = Field(ge=0)
+    quantity: Decimal = Field(gt=0, decimal_places=7)
     execution_price: Decimal = Field(gt=0)
     commission: Decimal = Field(default=0, ge=0)
     trading_fee: Decimal = Field(default=0, ge=0)
@@ -83,6 +83,16 @@ class WatchlistCreate(BaseModel):
     lower_percent: Decimal | None = Field(default=None, lt=0)
     upper_price: Decimal | None = Field(default=None, gt=0)
     lower_price: Decimal | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_rules(self):
+        if self.upper_percent is None and self.upper_price is None and self.lower_percent is None and self.lower_price is None:
+            raise ValueError("ต้องกำหนดเงื่อนไขแจ้งเตือนอย่างน้อย 1 รายการ")
+        if self.upper_percent is not None and self.upper_price is not None:
+            raise ValueError("เงื่อนไขด้านบนเลือกได้อย่างใดอย่างหนึ่งระหว่าง % หรือราคา")
+        if self.lower_percent is not None and self.lower_price is not None:
+            raise ValueError("เงื่อนไขด้านล่างเลือกได้อย่างใดอย่างหนึ่งระหว่าง % หรือราคา")
+        return self
 
 class WatchlistUpdate(WatchlistCreate):
     pass

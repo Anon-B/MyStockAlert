@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Holding = {
   id: string;
@@ -598,81 +599,90 @@ function WatchTable({
   onEdit?: (x: Watch) => void;
   onDelete?: (id: string) => void;
 }) {
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+    openUp: boolean;
+  } | null>(null);
   return (
-    <div className="ms-table-wrap">
-      <table className="ms-table">
-        <thead>
-          <tr>
-            <th>หุ้น</th>
-            <th>ราคาปัจจุบัน</th>
-            <th>เปลี่ยนแปลง</th>
-            <th>แจ้งเตือน</th>
-            {editable && <th>⋯</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((x) => {
-            const q = quotes?.find(
-              (z) => z.market === x.market && z.symbol === x.symbol,
-            );
-            const rules = [
-              x.upper_percent != null ? "↑ " + pct(x.upper_percent) : null,
-              x.lower_percent != null ? "↓ " + pct(x.lower_percent) : null,
-              x.upper_price != null ? "↑ " + x.upper_price : null,
-              x.lower_price != null ? "↓ " + x.lower_price : null,
-            ].filter(Boolean);
-            return (
-              <tr key={x.id}>
-                <td>
-                  <strong>{x.symbol}</strong>
-                  <small className="ms-table-sub">{x.market}</small>
-                </td>
-                <td>
-                  {q ? money(Number(q.price), q.currency) : "—"}
-                  {q && (
-                    <small className="ms-table-sub">{freshnessLabel(q)}</small>
-                  )}
-                </td>
-                <td
-                  className={
-                    Number(q?.change_percent || 0) >= 0
-                      ? "ms-positive"
-                      : "ms-negative"
-                  }
-                >
-                  {q ? pct(q.change_percent) : "—"}
-                </td>
-                <td>
-                  <span className="ms-watch-rules">
-                    {rules.length ? rules.join(" / ") : "—"}
-                  </span>
-                </td>
-                {editable && (
-                  <td>
-                    <div className="ms-row-menu">
-                      <button
-                        className="ms-menu-button"
-                        onClick={() => onEdit?.(x)}
-                      >
-                        ⋯
-                      </button>
-                      <div className="ms-row-menu-popover">
-                        <button onClick={() => onEdit?.(x)}>แก้ไข</button>
-                        <button
-                          className="danger"
-                          onClick={() => onDelete?.(x.id)}
+    <div className="ms-dashboard-watchlist-list">
+      {rows.map((x) => {
+        const q = quotes?.find(
+          (z) => z.market === x.market && z.symbol === x.symbol,
+        );
+        const rules = [
+          x.upper_percent != null ? "↑ " + pct(x.upper_percent) : null,
+          x.lower_percent != null ? "↓ " + pct(x.lower_percent) : null,
+          x.upper_price != null ? "↑ " + money(Number(x.upper_price), q?.currency || "") : null,
+          x.lower_price != null ? "↓ " + money(Number(x.lower_price), q?.currency || "") : null,
+        ].filter(Boolean);
+        return (
+          <div className="ms-watch-item" key={x.id}>
+            <div className="ms-watch-item-main">
+              <div className="ms-watch-stock">
+                <strong>{x.symbol}</strong>
+                <small>{x.market}</small>
+              </div>
+              <div className="ms-watch-price">
+                <strong>{q ? money(Number(q.price), q.currency) : "—"}</strong>
+                <small>ราคาปัจจุบัน</small>
+              </div>
+              <div className={q && Number(q.change_percent || 0) >= 0 ? "ms-watch-change ms-positive" : "ms-watch-change ms-negative"}>
+                <strong>{q ? pct(q.change_percent) : "—"}</strong>
+              </div>
+              <div className="ms-watch-alert">
+                <span>{rules.length ? rules.join("  ") : "—"}</span>
+                <small>Alert</small>
+              </div>
+              {editable && (
+                <div className="ms-row-menu ms-watch-item-menu">
+                  <button
+                    className="ms-menu-button"
+                    onClick={(e) => {
+                      if (openMenu === x.id) {
+                        setOpenMenu(null);
+                        setMenuPosition(null);
+                        return;
+                      }
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const estimatedMenuHeight = 100;
+                      const gap = 6;
+                      const openUp =
+                        rect.bottom + estimatedMenuHeight + gap > window.innerHeight;
+                      setOpenMenu(x.id);
+                      setMenuPosition({
+                        top: openUp
+                          ? Math.max(12, rect.top - estimatedMenuHeight - gap)
+                          : rect.bottom + gap,
+                        right: Math.max(12, window.innerWidth - rect.right),
+                        openUp,
+                      });
+                    }}
+                    aria-label="จัดการ Watchlist"
+                    title="จัดการ"
+                    aria-expanded={openMenu === x.id}
+                  >
+                    ⚙
+                  </button>
+                  {openMenu === x.id && menuPosition && typeof document !== "undefined"
+                    ? createPortal(
+                        <div
+                          className={"ms-row-menu-popover ms-floating-menu" + (menuPosition.openUp ? " open-up" : "")}
+                          style={{ top: menuPosition.top, right: menuPosition.right }}
                         >
-                          ลบ
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                          <button onClick={() => { setOpenMenu(null); setMenuPosition(null); onEdit?.(x); }}>แก้ไข</button>
+                          <button className="danger" onClick={() => { setOpenMenu(null); setMenuPosition(null); onDelete?.(x.id); }}>ลบ</button>
+                        </div>,
+                        document.body,
+                      )
+                    : null}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
       {!rows.length && (
         <Empty
           text={
@@ -795,6 +805,8 @@ function Portfolio({
   };
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [selected, setSelected] = useState<Holding | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number; openUp: boolean } | null>(null);
   const [f, setF] = useState<any>(empty);
   const [tx, setTx] = useState<any>({
     side: "BUY",
@@ -851,9 +863,6 @@ function Portfolio({
   }
   async function openTx(h: Holding) {
     setSelected(h);
-    requestAnimationFrame(() => {
-      document.getElementById("stock-detail-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
     const r = await apiFetch(`${API}/api/v1/portfolio/${h.id}/transactions`);
     setTxs(r.ok ? await r.json() : []);
     setShowFees(false);
@@ -890,7 +899,7 @@ function Portfolio({
       executed_at: tx.executed_at || null,
     };
     if (!body.quantity || !body.execution_price) return alert("กรุณาระบุจำนวนและราคา");
-    if (!/^\\d+(\\.\\d{1,7})?$/.test(String(tx.quantity))) return alert("จำนวนหุ้นต้องมีทศนิยมไม่เกิน 7 ตำแหน่ง");
+    if (!/^\d+(\.\d{1,7})?$/.test(String(tx.quantity))) return alert("จำนวนหุ้นต้องมีทศนิยมไม่เกิน 7 ตำแหน่ง");
     const idem = tx.idempotency_key || crypto.randomUUID();
     if (!tx.idempotency_key) setTx((v: any) => ({ ...v, idempotency_key: idem }));
     const r = await apiFetch(
@@ -938,7 +947,18 @@ function Portfolio({
         </div>
       </div>
       {mode && (
-        <div className="ms-simple-form ms-portfolio-add-form">
+        <div className="ms-stock-detail-overlay" role="dialog" aria-modal="true" aria-label={mode === "edit" ? "แก้ไขหุ้นใน Portfolio" : "เพิ่มหุ้นเข้า Portfolio"}>
+          <button className="ms-stock-detail-backdrop" aria-label="ปิด" onClick={reset} />
+          <div className="ms-card ms-modal-form ms-portfolio-add-form">
+            <div className="ms-modal-form-header">
+              <div>
+                <span className="ms-market-chip">{mode === "edit" ? "EDIT PORTFOLIO" : "ADD PORTFOLIO"}</span>
+                <h2>{mode === "edit" ? "แก้ไขหุ้นใน Portfolio" : "เพิ่มหุ้นเข้า Portfolio"}</h2>
+                <p>เลือกตลาดและหุ้นที่ต้องการบันทึกในพอร์ต</p>
+              </div>
+              <button className="ms-button ms-button-light" onClick={reset} aria-label="ปิด">✕</button>
+            </div>
+            <div className="ms-modal-form-grid">
           <label>
             ตลาด
             <select
@@ -968,7 +988,8 @@ function Portfolio({
               })
             }
           />
-          <div className="ms-actions">
+            </div>
+          <div className="ms-modal-form-actions">
             <button className="ms-button ms-button-light" onClick={reset}>
               ยกเลิก
             </button>
@@ -977,6 +998,7 @@ function Portfolio({
             </button>
           </div>
         </div>
+      </div>
       )}
       {groups.map(([mk, label]) => {
         const list = rows.filter((x) => x.market === mk);
@@ -1003,7 +1025,7 @@ function Portfolio({
                     <th>มูลค่า</th>
                     <th>P/L</th>
                     <th>%</th>
-                    <th>⋯</th>
+                    <th aria-label="จัดการ">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1052,27 +1074,37 @@ function Portfolio({
                           {pnlPct == null ? "—" : pct(pnlPct)}
                         </td>
                         <td>
-                          <div className="ms-row-actions">
-                            <button
-                              type="button"
-                              className="ms-button ms-button-light ms-detail-row-button"
-                              onClick={() => openTx(x)}
-                            >
-                              ดูรายละเอียด
-                            </button>
-                          </div>
                           <div className="ms-row-menu">
                             <button
                               className="ms-menu-button"
-                              onClick={() =>
-                                setSelected(selected?.id === x.id ? null : x)
-                              }
+                              onClick={(e) => {
+                                if (openMenuId === x.id) {
+                                  setOpenMenuId(null);
+                                  setMenuPosition(null);
+                                  return;
+                                }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const estimatedMenuHeight = 150;
+                                const gap = 6;
+                                const openUp = rect.bottom + estimatedMenuHeight + gap > window.innerHeight;
+                                setOpenMenuId(x.id);
+                                setMenuPosition({
+                                  top: openUp ? Math.max(12, rect.top - estimatedMenuHeight - gap) : rect.bottom + gap,
+                                  right: Math.max(12, window.innerWidth - rect.right),
+                                  openUp,
+                                });
+                              }}
+                              aria-label="จัดการรายการ"
+                              title="จัดการ"
                             >
-                              ⋯
+                              ⚙
                             </button>
-                            {selected?.id === x.id && (
-                              <div className="ms-row-menu-popover">
-                                <button onClick={() => openTx(x)}>
+                            {openMenuId === x.id && menuPosition && (
+                              <div
+                                className={`ms-row-menu-popover ms-floating-menu${menuPosition.openUp ? " open-up" : ""}`}
+                                style={{ top: menuPosition.top, right: menuPosition.right }}
+                              >
+                                <button onClick={() => { setOpenMenuId(null); openTx(x); }}>
                                   ดูรายละเอียด / รายการซื้อขาย
                                 </button>
                                 <button
@@ -1085,6 +1117,7 @@ function Portfolio({
                                       enabled: x.enabled,
                                       id: x.id,
                                     });
+                                    setOpenMenuId(null);
                                     setSelected(null);
                                   }}
                                 >
@@ -1092,7 +1125,7 @@ function Portfolio({
                                 </button>
                                 <button
                                   className="danger"
-                                  onClick={() => setDeleteTarget(x.id)}
+                                  onClick={() => { setOpenMenuId(null); setDeleteTarget(x.id); }}
                                 >
                                   ลบ
                                 </button>
@@ -1115,7 +1148,14 @@ function Portfolio({
         );
       })}
       {selected && (
-        <div id="stock-detail-panel" className="ms-transaction-panel ms-stock-detail">
+        <div className="ms-stock-detail-overlay" role="dialog" aria-modal="true" aria-label={`รายละเอียดหุ้น ${selected.symbol}`}>
+          <button
+            type="button"
+            className="ms-stock-detail-backdrop"
+            aria-label="ปิดรายละเอียด"
+            onClick={() => setSelected(null)}
+          />
+          <div id="stock-detail-panel" className="ms-transaction-panel ms-stock-detail">
           <div className="ms-card-header">
             <div>
               <span className="ms-market-chip">
@@ -1367,6 +1407,7 @@ function Portfolio({
           {txs.some((x) => String(x.status).toUpperCase() === "CANCELLED") && (
             <div className="ms-banner ms-banner-warning">⚠ รายการ CANCELLED จะไม่ถูกนำไปคำนวณ Holdings, Cost Basis หรือ Average Cost</div>
           )}
+          </div>
         </div>
       )}
       {deleteTarget && (
@@ -1433,16 +1474,24 @@ function Watchlist({
     enabled: true,
   };
   const [f, setF] = useState<any>(empty);
+  const [upperMode, setUpperMode] = useState<"percent" | "price">("percent");
+  const [lowerMode, setLowerMode] = useState<"percent" | "price">("percent");
   const [edit, setEdit] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false),
     [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   async function save() {
+    // The active condition is determined by the value the user entered.
+    // Do not rely on the mode state here: entering a price clears the percent field,
+    // and vice versa. This keeps the UI validation in sync with the actual form data.
+    const hasUpper = f.upper_percent !== "" || f.upper_price !== "";
+    const hasLower = f.lower_percent !== "" || f.lower_price !== "";
+    if (!hasUpper && !hasLower) return alert("กรุณากำหนดเงื่อนไขแจ้งเตือนอย่างน้อย 1 รายการ");
     const body = {
       ...f,
-      upper_percent: f.upper_percent === "" ? null : Number(f.upper_percent),
-      lower_percent: f.lower_percent === "" ? null : Number(f.lower_percent),
-      upper_price: f.upper_price === "" ? null : Number(f.upper_price),
-      lower_price: f.lower_price === "" ? null : Number(f.lower_price),
+      upper_percent: f.upper_percent !== "" ? Number(f.upper_percent) : null,
+      lower_percent: f.lower_percent !== "" ? Number(f.lower_percent) : null,
+      upper_price: f.upper_price !== "" ? Number(f.upper_price) : null,
+      lower_price: f.lower_price !== "" ? Number(f.lower_price) : null,
     };
     const editing = Boolean(edit && edit !== "new");
     const r = await apiFetch(
@@ -1485,8 +1534,18 @@ function Watchlist({
           ＋ เพิ่ม Watchlist
         </button>
       </div>
-      {showForm && (
-        <div className="ms-add-panel">
+      {showForm && typeof document !== "undefined" && createPortal(
+        <div className="ms-stock-detail-overlay ms-watchlist-modal-overlay" role="dialog" aria-modal="true" aria-label={edit === "new" ? "เพิ่ม Watchlist" : "แก้ไข Watchlist"}>
+          <button className="ms-stock-detail-backdrop" aria-label="ปิด" onClick={() => { setEdit(null); setF(empty); setShowForm(false); }} />
+          <div className="ms-card ms-modal-form ms-watchlist-modal">
+            <div className="ms-modal-form-header">
+              <div>
+                <span className="ms-market-chip">{edit === "new" ? "ADD WATCHLIST" : "EDIT WATCHLIST"}</span>
+                <h2>{edit === "new" ? "เพิ่ม Watchlist" : "แก้ไข Watchlist"}</h2>
+                <p>เลือกหุ้นและกำหนดเงื่อนไขแจ้งเตือนราคา</p>
+              </div>
+              <button className="ms-button ms-button-light" onClick={() => { setEdit(null); setF(empty); setShowForm(false); }} aria-label="ปิด">✕</button>
+            </div>
           <Form>
             <StockPicker
               market={f.market}
@@ -1504,8 +1563,9 @@ function Watchlist({
                     type="number"
                     placeholder="+7"
                     value={f.upper_percent}
+                    disabled={f.upper_price !== ""}
                     onChange={(e) =>
-                      setF({ ...f, upper_percent: e.target.value })
+                      setF({ ...f, upper_percent: e.target.value, upper_price: "" })
                     }
                   />
                 </label>
@@ -1515,8 +1575,9 @@ function Watchlist({
                     type="number"
                     placeholder="เช่น 38.00"
                     value={f.upper_price}
+                    disabled={f.upper_percent !== ""}
                     onChange={(e) =>
-                      setF({ ...f, upper_price: e.target.value })
+                      setF({ ...f, upper_price: e.target.value, upper_percent: "" })
                     }
                   />
                 </label>
@@ -1528,8 +1589,9 @@ function Watchlist({
                     type="number"
                     placeholder="-7"
                     value={f.lower_percent}
+                    disabled={f.lower_price !== ""}
                     onChange={(e) =>
-                      setF({ ...f, lower_percent: e.target.value })
+                      setF({ ...f, lower_percent: e.target.value, lower_price: "" })
                     }
                   />
                 </label>
@@ -1539,8 +1601,9 @@ function Watchlist({
                     type="number"
                     placeholder="เช่น 32.00"
                     value={f.lower_price}
+                    disabled={f.lower_percent !== ""}
                     onChange={(e) =>
-                      setF({ ...f, lower_price: e.target.value })
+                      setF({ ...f, lower_price: e.target.value, lower_percent: "" })
                     }
                   />
                 </label>
@@ -1562,7 +1625,9 @@ function Watchlist({
               </button>
             </div>
           </Form>
-        </div>
+          </div>
+        </div>,
+        document.body,
       )}
       <WatchTable
         rows={rows}

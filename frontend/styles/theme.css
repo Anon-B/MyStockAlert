@@ -510,7 +510,9 @@ input,select { border-color:rgba(255,255,255,.70); background:rgba(255,255,255,.
 @media(max-width:800px){.ms-simple-form,.ms-add-panel{grid-template-columns:1fr}.ms-simple-form .ms-actions,.ms-add-panel .ms-actions{grid-column:1}.ms-stock-results{position:relative;top:4px}.ms-stock-picker{z-index:30}}
 
 /* Portfolio transaction UX */
-.ms-row-menu{position:relative;display:inline-block}.ms-menu-button{width:34px;height:34px;border:1px solid var(--ms-border);border-radius:9px;background:rgba(255,255,255,.45);color:var(--ms-text);font-size:18px;line-height:1;cursor:pointer}.ms-row-menu-popover{display:none;position:absolute;right:0;top:40px;z-index:50;min-width:190px;padding:6px;border:1px solid var(--ms-border);border-radius:12px;background:var(--ms-surface);box-shadow:0 14px 36px rgba(15,23,42,.16);backdrop-filter:blur(18px)}.ms-row-menu:hover .ms-row-menu-popover,.ms-row-menu:focus-within .ms-row-menu-popover{display:block}.ms-row-menu-popover button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:8px;color:var(--ms-text);cursor:pointer;font:inherit}.ms-row-menu-popover button:hover{background:var(--ms-surface-muted)}.ms-row-menu-popover button.danger{color:var(--ms-negative)}.ms-trade-calculated{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ms-trade-calculated>div{padding:10px 12px;border:1px solid var(--ms-border);border-radius:10px;background:rgba(255,255,255,.28)}.ms-trade-calculated span{display:block;color:var(--ms-text-muted);font-size:11px}.ms-trade-calculated strong{display:block;margin-top:3px}.ms-optional{color:var(--ms-text-muted);font-weight:400;font-size:12px}.ms-stock-detail .ms-detail-trade{grid-template-columns:150px repeat(4,minmax(0,1fr)) 1.4fr auto}.ms-stock-detail .ms-detail-trade .ms-trade-calculated{grid-column:1/-2}.ms-stock-detail .ms-detail-trade>.ms-button{align-self:end}.ms-stock-detail .ms-fee-panel{margin-bottom:0}.ms-portfolio-add-form{position:relative;z-index:10}
+.ms-row-menu{position:relative;display:inline-block}.ms-menu-button{width:34px;height:34px;border:1px solid var(--ms-border);border-radius:9px;background:rgba(255,255,255,.45);color:var(--ms-text);font-size:18px;line-height:1;cursor:pointer}.ms-row-menu-popover{display:none;position:absolute;right:0;top:40px;z-index:50;min-width:190px;padding:6px;border:1px solid var(--ms-border);border-radius:12px;background:var(--ms-surface);box-shadow:0 14px 36px rgba(15,23,42,.16);backdrop-filter:blur(18px)}
+.ms-floating-menu{display:block;position:fixed;right:auto;top:auto;z-index:1000;max-height:calc(100vh - 24px);overflow:hidden}
+.ms-floating-menu.open-up{transform:translateY(0)}.ms-row-menu-popover.open{display:block}.ms-row-menu-popover button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:8px;color:var(--ms-text);cursor:pointer;font:inherit}.ms-row-menu-popover button:hover{background:var(--ms-surface-muted)}.ms-row-menu-popover button.danger{color:var(--ms-negative)}.ms-trade-calculated{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ms-trade-calculated>div{padding:10px 12px;border:1px solid var(--ms-border);border-radius:10px;background:rgba(255,255,255,.28)}.ms-trade-calculated span{display:block;color:var(--ms-text-muted);font-size:11px}.ms-trade-calculated strong{display:block;margin-top:3px}.ms-optional{color:var(--ms-text-muted);font-weight:400;font-size:12px}.ms-stock-detail .ms-detail-trade{grid-template-columns:150px repeat(4,minmax(0,1fr)) 1.4fr auto}.ms-stock-detail .ms-detail-trade .ms-trade-calculated{grid-column:1/-2}.ms-stock-detail .ms-detail-trade>.ms-button{align-self:end}.ms-stock-detail .ms-fee-panel{margin-bottom:0}.ms-portfolio-add-form{position:relative;z-index:10}
 @media(max-width:1000px){.ms-stock-detail .ms-detail-trade{grid-template-columns:1fr 1fr}.ms-stock-detail .ms-detail-trade .ms-trade-calculated{grid-column:1/-1}.ms-stock-detail .ms-detail-trade>.ms-button{grid-column:1/-1}.ms-trade-calculated{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.ms-trade-calculated{grid-template-columns:1fr}.ms-row-menu-popover{right:0;min-width:180px}}
 
@@ -549,3 +551,64 @@ input,select { border-color:rgba(255,255,255,.70); background:rgba(255,255,255,.
 .ms-auth-note{display:block;text-align:center;color:var(--ms-text-secondary);margin-top:8px}
 .ms-logout-button{display:block;width:100%;margin-top:12px;padding:8px 10px;border:1px solid var(--ms-border);border-radius:8px;background:transparent;color:var(--ms-text-secondary);cursor:pointer}
 .ms-logout-button:hover{color:var(--ms-negative);border-color:var(--ms-negative)}
+
+
+/* Stock detail opens as a focused overlay instead of expanding the page. */
+.ms-stock-detail-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;isolation:isolate}
+.ms-modal-form{position:relative;z-index:1;width:min(680px,calc(100vw - 48px));max-height:calc(100vh - 48px);overflow:auto;padding:0}
+.ms-watchlist-modal{width:min(720px,calc(100vw - 48px));box-shadow:0 24px 80px rgba(15,23,42,.28)}
+.ms-modal-form-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 24px;border-bottom:1px solid var(--ms-border)}
+.ms-modal-form-header h2{margin:8px 0 5px;font-size:20px}.ms-modal-form-header p{margin:0;color:var(--ms-text-muted);font-size:12px}.ms-modal-form-header .ms-button{min-width:40px;padding:8px 10px}
+.ms-modal-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:22px 24px 4px}
+.ms-modal-form-grid label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;color:var(--ms-text)}
+.ms-modal-form-grid input,.ms-modal-form-grid select{width:100%;box-sizing:border-box;min-height:42px;border:1px solid var(--ms-border);border-radius:10px;background:var(--ms-surface);padding:9px 12px;color:var(--ms-text)}
+.ms-modal-form-grid .ms-stock-picker{grid-column:1/-1}
+.ms-modal-form-actions{display:flex;justify-content:flex-end;gap:8px;padding:18px 24px 22px;border-top:1px solid var(--ms-border);margin-top:18px}
+.ms-modal-form .ms-watch-alert-group{margin:0 24px;grid-column:1/-1}
+@media(max-width:700px){.ms-modal-form{width:calc(100vw - 20px);max-height:calc(100vh - 20px)}.ms-modal-form-header{padding:18px}.ms-modal-form-grid{grid-template-columns:1fr;padding:18px}.ms-modal-form-grid .ms-stock-picker{grid-column:auto}.ms-modal-form-actions{padding:16px 18px 18px}.ms-modal-form .ms-watch-alert-group{margin:0 18px}}
+
+.ms-stock-detail-backdrop{position:absolute;inset:0;border:0;background:rgba(15,23,42,.42);backdrop-filter:blur(5px);cursor:pointer}
+.ms-stock-detail-overlay .ms-stock-detail{position:relative;z-index:1;width:min(1100px,calc(100vw - 48px));max-height:calc(100vh - 48px);overflow:auto;box-shadow:0 24px 80px rgba(15,23,42,.28)}
+@media(max-width:700px){.ms-stock-detail-overlay{padding:10px}.ms-stock-detail-overlay .ms-stock-detail{width:100%;max-height:calc(100vh - 20px)}}
+
+/* Watchlist / header button balance */
+.ms-card-header{align-items:center;gap:24px}
+.ms-card-header>div:first-child{min-width:0}
+.ms-card-header .ms-button{flex:0 0 auto;min-height:40px;padding:9px 16px;border-radius:10px;font-size:13px;letter-spacing:-.01em;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.ms-card-header .ms-button:hover{transform:translateY(-1px)}
+.ms-watchlist-modal .ms-modal-form-header{padding:20px 22px}
+.ms-watchlist-modal .ms-modal-form-header h2{font-size:19px}
+.ms-watchlist-modal .ms-modal-form-header .ms-button-light{width:38px;height:38px;min-width:38px;padding:0;border-radius:10px}
+.ms-watchlist-modal .ms-form-row{display:block;padding:20px 22px 22px}
+.ms-watchlist-modal .ms-stock-picker{margin:0}
+.ms-watchlist-modal .ms-watch-alert-group{margin:18px 0 0;padding:14px 15px;border-radius:12px}
+.ms-watchlist-modal .ms-watch-alert-title{font-size:13px}
+.ms-watchlist-modal .ms-watch-alert-row{gap:10px;margin-top:9px}
+.ms-watchlist-modal .ms-watch-alert-row input{min-height:40px;box-sizing:border-box}
+.ms-watchlist-modal .ms-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--ms-border)}
+.ms-watchlist-modal .ms-actions .ms-button{min-height:40px;padding:9px 15px}
+@media(max-width:600px){.ms-card-header{align-items:flex-start}.ms-card-header .ms-button{width:auto}.ms-watchlist-modal .ms-form-row{padding:18px}.ms-watchlist-modal .ms-actions{flex-direction:column-reverse}.ms-watchlist-modal .ms-actions .ms-button{width:100%}}
+
+/* Dashboard Watchlist: compact item cards inside one parent card */
+.ms-dashboard-watchlist-list{display:flex;flex-direction:column;gap:10px;padding:0 24px 24px}
+.ms-watch-item{border:1px solid var(--ms-border);border-radius:12px;background:rgba(255,255,255,.24);overflow:visible;transition:background .15s ease,border-color .15s ease}
+.ms-watch-item:hover{background:var(--ms-surface-muted);border-color:color-mix(in srgb,var(--ms-border) 72%,var(--ms-accent))}
+.ms-watch-item-main{display:grid;grid-template-columns:minmax(110px,1.1fr) minmax(130px,1fr) minmax(80px,.7fr) minmax(120px,1fr) auto;align-items:center;gap:18px;padding:14px 16px}
+.ms-watch-stock,.ms-watch-price,.ms-watch-alert{display:flex;flex-direction:column;min-width:0}
+.ms-watch-stock strong,.ms-watch-price strong{font-size:15px;color:var(--ms-text)}
+.ms-watch-stock small,.ms-watch-price small,.ms-watch-alert small{margin-top:3px;color:var(--ms-text-muted);font-size:11px}
+.ms-watch-change strong{font-size:13px;white-space:nowrap}
+.ms-watch-alert{align-items:flex-end;text-align:right}
+.ms-watch-alert span{font-size:13px;font-weight:650;white-space:nowrap}
+.ms-watch-alert small{font-size:11px}
+.ms-watch-item-menu{justify-self:end}
+@media(max-width:700px){
+  .ms-dashboard-watchlist-list{padding:0 18px 18px;gap:8px}
+  .ms-watch-item-main{grid-template-columns:1fr 1fr;gap:12px 14px;padding:14px}
+  .ms-watch-stock{grid-column:1}
+  .ms-watch-price{grid-column:2;text-align:right;align-items:flex-end}
+  .ms-watch-change{grid-column:1}
+  .ms-watch-alert{grid-column:2}
+  .ms-watch-item-menu{position:absolute}
+  .ms-watch-item{position:relative}
+}
