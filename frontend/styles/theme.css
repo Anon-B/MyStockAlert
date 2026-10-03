@@ -510,7 +510,7 @@ input,select { border-color:rgba(255,255,255,.70); background:rgba(255,255,255,.
 @media(max-width:800px){.ms-simple-form,.ms-add-panel{grid-template-columns:1fr}.ms-simple-form .ms-actions,.ms-add-panel .ms-actions{grid-column:1}.ms-stock-results{position:relative;top:4px}.ms-stock-picker{z-index:30}}
 
 /* Portfolio transaction UX */
-.ms-row-menu{position:relative;display:inline-block}.ms-menu-button{width:34px;height:34px;border:1px solid var(--ms-border);border-radius:9px;background:rgba(255,255,255,.45);color:var(--ms-text);font-size:18px;line-height:1;cursor:pointer}.ms-row-menu-popover{position:absolute;right:0;top:40px;z-index:50;min-width:190px;padding:6px;border:1px solid var(--ms-border);border-radius:12px;background:var(--ms-surface);box-shadow:0 14px 36px rgba(15,23,42,.16);backdrop-filter:blur(18px)}.ms-row-menu-popover button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:8px;color:var(--ms-text);cursor:pointer;font:inherit}.ms-row-menu-popover button:hover{background:var(--ms-surface-muted)}.ms-row-menu-popover button.danger{color:var(--ms-negative)}.ms-trade-calculated{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ms-trade-calculated>div{padding:10px 12px;border:1px solid var(--ms-border);border-radius:10px;background:rgba(255,255,255,.28)}.ms-trade-calculated span{display:block;color:var(--ms-text-muted);font-size:11px}.ms-trade-calculated strong{display:block;margin-top:3px}.ms-optional{color:var(--ms-text-muted);font-weight:400;font-size:12px}.ms-stock-detail .ms-detail-trade{grid-template-columns:150px repeat(4,minmax(0,1fr)) 1.4fr auto}.ms-stock-detail .ms-detail-trade .ms-trade-calculated{grid-column:1/-2}.ms-stock-detail .ms-detail-trade>.ms-button{align-self:end}.ms-stock-detail .ms-fee-panel{margin-bottom:0}.ms-portfolio-add-form{position:relative;z-index:10}
+.ms-row-menu{position:relative;display:inline-block}.ms-menu-button{width:34px;height:34px;border:1px solid var(--ms-border);border-radius:9px;background:rgba(255,255,255,.45);color:var(--ms-text);font-size:18px;line-height:1;cursor:pointer}.ms-row-menu-popover{display:none;position:absolute;right:0;top:40px;z-index:50;min-width:190px;padding:6px;border:1px solid var(--ms-border);border-radius:12px;background:var(--ms-surface);box-shadow:0 14px 36px rgba(15,23,42,.16);backdrop-filter:blur(18px)}.ms-row-menu:hover .ms-row-menu-popover,.ms-row-menu:focus-within .ms-row-menu-popover{display:block}.ms-row-menu-popover button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:8px;color:var(--ms-text);cursor:pointer;font:inherit}.ms-row-menu-popover button:hover{background:var(--ms-surface-muted)}.ms-row-menu-popover button.danger{color:var(--ms-negative)}.ms-trade-calculated{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ms-trade-calculated>div{padding:10px 12px;border:1px solid var(--ms-border);border-radius:10px;background:rgba(255,255,255,.28)}.ms-trade-calculated span{display:block;color:var(--ms-text-muted);font-size:11px}.ms-trade-calculated strong{display:block;margin-top:3px}.ms-optional{color:var(--ms-text-muted);font-weight:400;font-size:12px}.ms-stock-detail .ms-detail-trade{grid-template-columns:150px repeat(4,minmax(0,1fr)) 1.4fr auto}.ms-stock-detail .ms-detail-trade .ms-trade-calculated{grid-column:1/-2}.ms-stock-detail .ms-detail-trade>.ms-button{align-self:end}.ms-stock-detail .ms-fee-panel{margin-bottom:0}.ms-portfolio-add-form{position:relative;z-index:10}
 @media(max-width:1000px){.ms-stock-detail .ms-detail-trade{grid-template-columns:1fr 1fr}.ms-stock-detail .ms-detail-trade .ms-trade-calculated{grid-column:1/-1}.ms-stock-detail .ms-detail-trade>.ms-button{grid-column:1/-1}.ms-trade-calculated{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.ms-trade-calculated{grid-template-columns:1fr}.ms-row-menu-popover{right:0;min-width:180px}}
 
@@ -526,3 +526,26 @@ input,select { border-color:rgba(255,255,255,.70); background:rgba(255,255,255,.
 .ms-fx-status{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:14px 0;padding:13px 14px;border:1px solid var(--ms-border);border-radius:12px;background:rgba(255,255,255,.22)}.ms-fx-status>div{display:flex;flex-direction:column;gap:4px}.ms-fx-status span{font-size:11px;color:var(--ms-text-muted)}.ms-fx-status strong{font-size:18px}.ms-fx-status small{font-size:11px;color:var(--ms-text-muted)}
 .ms-settings-card .ms-sync-result{color:var(--ms-text)}
 @media(max-width:700px){.ms-data-warning{align-items:flex-start;flex-direction:column;gap:4px}.ms-alert-summary{padding:0 18px 14px;gap:12px;flex-wrap:wrap}.ms-fx-status{align-items:flex-start;flex-direction:column}}
+
+/* Financial transaction UX states */
+.ms-status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.ms-status-filled,.ms-status-matched{background:var(--ms-positive-bg);color:var(--ms-positive)}
+.ms-status-pending{background:var(--ms-info-bg);color:var(--ms-info)}
+.ms-status-cancelled,.ms-status-rejected{background:var(--ms-negative-bg);color:var(--ms-negative)}
+.ms-banner-warning{background:var(--ms-warning-bg);color:#76520a;border:1px solid #f0d98c}
+.ms-trade-form label small.ms-table-sub{display:block;margin-top:4px}
+.ms-fee-panel{margin-top:10px}
+.ms-fee-hint{font-size:12px;color:var(--ms-text-secondary);line-height:1.5}
+
+.ms-auth-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--ms-bg)}
+.ms-auth-card{width:min(440px,92vw);padding:34px;border:1px solid var(--ms-border);border-radius:20px;background:var(--ms-card);box-shadow:0 18px 60px rgba(0,0,0,.08)}
+.ms-auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.ms-auth-head{margin-bottom:20px}
+.ms-auth-eyebrow{font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--ms-text-secondary)}
+.ms-auth-head h1{margin:7px 0 8px}
+.ms-auth-head p{margin:0;color:var(--ms-text-secondary)}
+.ms-auth-submit{width:100%;margin-top:8px}
+.ms-auth-switch{width:100%;margin-top:12px;border:0;background:transparent;color:var(--ms-accent);font-weight:700;cursor:pointer;padding:10px}
+.ms-auth-note{display:block;text-align:center;color:var(--ms-text-secondary);margin-top:8px}
+.ms-logout-button{display:block;width:100%;margin-top:12px;padding:8px 10px;border:1px solid var(--ms-border);border-radius:8px;background:transparent;color:var(--ms-text-secondary);cursor:pointer}
+.ms-logout-button:hover{color:var(--ms-negative);border-color:var(--ms-negative)}

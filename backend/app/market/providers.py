@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 import asyncio
 import httpx
 
@@ -31,9 +32,9 @@ async def search_symbols(query: str, market: str, limit: int = 8) -> list[dict]:
 class Quote:
     market: str
     symbol: str
-    price: float
+    price: Decimal
     currency: str
-    change_percent: float | None
+    change_percent: Decimal | None
     timestamp: datetime
     source: str
 
@@ -60,9 +61,9 @@ class YahooProvider(MarketDataProvider):
                     r.raise_for_status()
                     data = r.json()["chart"]["result"][0]
                 meta = data["meta"]
-                price = float(meta["regularMarketPrice"])
+                price = Decimal(str(meta["regularMarketPrice"]))
                 previous = meta.get("previousClose")
-                change = ((price / float(previous)) - 1) * 100 if previous else None
+                change = ((price / Decimal(str(previous))) - Decimal("1")) * Decimal("100") if previous else None
                 return Quote(market, symbol, price, "THB" if market == "TH" else "USD",
                     change, datetime.now(timezone.utc), "yahoo")
             except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
@@ -71,18 +72,18 @@ class YahooProvider(MarketDataProvider):
                     await asyncio.sleep(0.25 * (2 ** attempt))
         raise RuntimeError(f"market provider failed after retries: {last_error}")
 
-async def fx_rate(base: str = "USD", quote: str = "THB") -> tuple[float, datetime, str]:
+async def fx_rate(base: str = "USD", quote: str = "THB") -> tuple[Decimal, datetime, str]:
     ticker = f"{base.upper()}{quote.upper()}=X"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(YahooProvider.base + ticker, params={"range":"1d", "interval":"1m"})
             r.raise_for_status()
             data = r.json()["chart"]["result"][0]["meta"]
-        return float(data["regularMarketPrice"]), datetime.now(timezone.utc), "yahoo"
+        return Decimal(str(data["regularMarketPrice"])), datetime.now(timezone.utc), "yahoo"
     except (httpx.HTTPError, KeyError, TypeError, ValueError):
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get("https://api.frankfurter.dev/v2/rate/"+base.lower()+"/"+quote.lower())
             r.raise_for_status()
             data = r.json()
         quoted_at = datetime.fromisoformat(data["date"]).replace(tzinfo=timezone.utc)
-        return float(data["rate"]), quoted_at, "frankfurter"
+        return Decimal(str(data["rate"])), quoted_at, "frankfurter"

@@ -19,8 +19,9 @@ class PortfolioUpdate(PortfolioCreate):
 
 class PortfolioTransactionCreate(BaseModel):
     side: str
+    status: str = "FILLED"
     order_id: str | None = None
-    quantity: Decimal = Field(gt=0)
+    quantity: Decimal = Field(ge=0)
     execution_price: Decimal = Field(gt=0)
     commission: Decimal = Field(default=0, ge=0)
     trading_fee: Decimal = Field(default=0, ge=0)
@@ -31,16 +32,22 @@ class PortfolioTransactionCreate(BaseModel):
     taf_fee: Decimal = Field(default=0, ge=0)
     vat: Decimal = Field(default=0, ge=0)
     fx_rate: Decimal | None = Field(default=None, gt=0)
+    net_amount_thb: Decimal | None = Field(default=None, ge=0)
+    trading_value_thb: Decimal | None = Field(default=None, ge=0)
     executed_at: datetime | None = None
 
 class PortfolioTransactionOut(ORMModel):
     id: uuid.UUID
     holding_id: uuid.UUID
+    user_id: uuid.UUID
+    idempotency_key: str | None
     side: str
+    status: str
     order_id: str | None
     quantity: Decimal
     execution_price: Decimal
     trading_value: Decimal
+    trading_value_thb: Decimal | None
     commission: Decimal
     trading_fee: Decimal
     clearing_fee: Decimal
@@ -49,6 +56,7 @@ class PortfolioTransactionOut(ORMModel):
     sec_fee: Decimal
     taf_fee: Decimal
     vat: Decimal
+    net_amount_thb: Decimal | None
     fx_rate: Decimal | None
     net_amount: Decimal
     currency: str
@@ -110,6 +118,8 @@ class AlertHistoryOut(ORMModel):
     retry_count: int
     last_error: str | None
     status: str
+    provider: str | None = None
+    delivery_status: str | None = None
 
 class StockSearchOut(BaseModel):
     symbol: str

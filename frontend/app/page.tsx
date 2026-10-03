@@ -86,6 +86,7 @@ type Summary = {
   >;
 };
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" });
 const NAV: { [k: string]: string } = {
   dashboard: "Dashboard",
   portfolio: "Portfolio",
@@ -118,6 +119,11 @@ const statusLabel = (s: string) =>
       : s === "retrying"
         ? "กำลังลองส่งใหม่"
         : "กำลังส่ง";
+const transactionStatusLabel = (s: string) => ({
+  FILLED: "FILLED · จับคู่แล้ว", MATCHED: "FILLED · จับคู่แล้ว",
+  PENDING: "PENDING · รอจับคู่", CANCELLED: "CANCELLED · ยกเลิก",
+  REJECTED: "REJECTED · ไม่รับคำสั่ง",
+} as Record<string, string>)[s] || s;
 const freshnessLabel = (q: Quote | null | undefined) => {
   if (!q) return "ไม่มีข้อมูล";
   if (q.stale) return "ข้อมูลล่าช้า";
@@ -157,7 +163,9 @@ export default function Home() {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [stockStatus, setStockStatus] = useState<any>(null),
-    [fx, setFx] = useState<any>(null);
+    [fx, setFx] = useState<any>(null),
+    [authOk, setAuthOk] = useState(false),
+    [authReady, setAuthReady] = useState(false);
   const display = String(
     settings.find((x) => x.key === "display_currency")?.value || "native",
   );
@@ -180,9 +188,17 @@ export default function Home() {
         "fx/usd-thb",
       ];
       const rs = await Promise.all(
-        paths.map((x) => fetch(`${API}/api/v1/${x}`)),
+        paths.map((x) => apiFetch(`${API}/api/v1/${x}`)),
       );
+      if (rs.some((x) => x.status === 401)) {
+        setAuthOk(false);
+        setAuthReady(true);
+        setLoading(false);
+        return;
+      }
       if (rs.some((x) => !x.ok)) throw Error("API");
+      setAuthOk(true);
+      setAuthReady(true);
       const data = await Promise.all(rs.map((x) => x.json()));
       setHoldings(data[0]);
       setWatch(data[1]);
@@ -196,6 +212,7 @@ export default function Home() {
       setStockStatus(data[9]);
       setFx(data[10]);
     } catch {
+      setAuthReady(true);
       setError("เชื่อมต่อ API ไม่สำเร็จ");
     } finally {
       if (!silent) setLoading(false);
@@ -217,6 +234,8 @@ export default function Home() {
     document.body.classList.toggle("ms-dark-premium-root", darkPremium);
     return () => document.body.classList.remove("ms-dark-premium-root");
   }, [darkPremium]);
+  if (!authReady) return <div className="ms-shell"><div className="ms-card ms-card-body">กำลังตรวจสอบสิทธิ์...</div></div>;
+  if (!authOk) return <LoginScreen onSuccess={() => load()} />;
   return (
     <div className={darkPremium ? "ms-shell ms-dark-premium" : "ms-shell"}>
       <aside className="ms-sidebar">
@@ -241,6 +260,7 @@ export default function Home() {
         <div className="ms-sidebar-footer">
           <span className={system?.database ? "ms-dot" : "ms-dot ms-dot-off"} />
           {system?.database ? "เชื่อมต่อระบบแล้ว" : "กำลังตรวจสอบ..."}
+          <button className="ms-logout-button" onClick={async () => { await apiFetch(`${API}/api/v1/auth/logout`, { method: "POST" }); setAuthOk(false); setAuthReady(true); }}>ออกจากระบบ</button>
         </div>
       </aside>
       <main className="ms-main">
@@ -338,7 +358,7 @@ export default function Home() {
 function FxMini() {
   const [fx, setFx] = useState<any>(null);
   useEffect(() => {
-    fetch(`${API}/api/v1/fx/usd-thb`)
+    apiFetch(`${API}/api/v1/fx/usd-thb`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setFx)
       .catch(() => {});
@@ -347,6 +367,8 @@ function FxMini() {
     <div className="ms-fx-mini">
       <span>USD/THB</span>
       <strong>{fx?.rate ? Number(fx.rate).toFixed(4) : "—"}</strong>
+      {fx?.status === "STALE" && <small className="ms-table-sub">⚠ Stale</small>}
+      {fx?.status === "FALLBACK" && <small className="ms-table-sub">⚠ Fallback · {fx.source}</small>}
     </div>
   );
 }
@@ -689,7 +711,7 @@ function StockPicker({
     const timer = setTimeout(async () => {
       setBusy(true);
       try {
-        const r = await fetch(
+        const r = await apiFetch(
           API +
             "/api/v1/market/search?q=" +
             encodeURIComponent(term) +
@@ -778,7 +800,9 @@ function Portfolio({
   const [f, setF] = useState<any>(empty);
   const [tx, setTx] = useState<any>({
     side: "BUY",
+    status: "FILLED",
     order_id: "",
+    idempotency_key: "",
     quantity: "",
     execution_price: "",
     commission: "",
@@ -804,7 +828,7 @@ function Portfolio({
       mode === "edit"
         ? `${API}/api/v1/portfolio/${f.id}`
         : `${API}/api/v1/portfolio`;
-    const r = await fetch(url, {
+    const r = await apiFetch(url, {
       method: mode === "edit" ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -818,7 +842,7 @@ function Portfolio({
     reload();
   }
   async function remove(id: string) {
-    const r = await fetch(`${API}/api/v1/portfolio/${id}`, {
+    const r = await apiFetch(`${API}/api/v1/portfolio/${id}`, {
       method: "DELETE",
     });
     if (r.ok) {
@@ -828,15 +852,18 @@ function Portfolio({
   }
   async function openTx(h: Holding) {
     setSelected(h);
-    const r = await fetch(`${API}/api/v1/portfolio/${h.id}/transactions`);
+    const r = await apiFetch(`${API}/api/v1/portfolio/${h.id}/transactions`);
     setTxs(r.ok ? await r.json() : []);
     setShowFees(false);
     setTx({
       ...tx,
       side: "BUY",
+      status: "FILLED",
       quantity: "",
       execution_price: "",
       order_id: "",
+      idempotency_key: crypto.randomUUID(),
+      fx_rate: h.currency === "USD" && fx ? String(fx) : "",
       executed_at: "",
     });
   }
@@ -845,6 +872,7 @@ function Portfolio({
     const n = (v: any) => (v === "" || v == null ? 0 : Number(v));
     const body = {
       side: tx.side,
+      status: tx.status || "FILLED",
       order_id: tx.order_id || null,
       quantity: n(tx.quantity),
       execution_price: n(tx.execution_price),
@@ -859,18 +887,20 @@ function Portfolio({
       fx_rate: tx.fx_rate === "" ? null : n(tx.fx_rate),
       executed_at: tx.executed_at || null,
     };
-    if (!body.quantity || !body.execution_price)
-      return alert("กรุณาระบุจำนวนและราคา");
-    const r = await fetch(
+    if (!body.quantity || !body.execution_price) return alert("กรุณาระบุจำนวนและราคา");
+    if (!/^\\d+(\\.\\d{1,7})?$/.test(String(tx.quantity))) return alert("จำนวนหุ้นต้องมีทศนิยมไม่เกิน 7 ตำแหน่ง");
+    const idem = tx.idempotency_key || crypto.randomUUID();
+    if (!tx.idempotency_key) setTx((v: any) => ({ ...v, idempotency_key: idem }));
+    const r = await apiFetch(
       `${API}/api/v1/portfolio/${selected.id}/transactions`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idem },
         body: JSON.stringify(body),
       },
     );
     if (!r.ok) return alert("บันทึกรายการไม่สำเร็จ");
-    const rr = await fetch(
+    const rr = await apiFetch(
       `${API}/api/v1/portfolio/${selected.id}/transactions`,
     );
     setTxs(rr.ok ? await rr.json() : []);
@@ -880,16 +910,9 @@ function Portfolio({
     ["TH", "หุ้นไทย"],
     ["US", "หุ้นสหรัฐ"],
   ];
-  const feeKeys = [
-    "commission",
-    "trading_fee",
-    "clearing_fee",
-    "regulatory_fee",
-    "cat_fee",
-    "sec_fee",
-    "taf_fee",
-    "vat",
-  ];
+  const feeKeys = selected?.market === "TH"
+    ? ["commission", "trading_fee", "clearing_fee", "regulatory_fee", "vat"]
+    : ["commission", "cat_fee", "sec_fee", "taf_fee", "vat"];
   const fees = feeKeys.reduce((s, k) => s + (Number(tx[k]) || 0), 0);
   return (
     <section className="ms-portfolio-page">
@@ -1149,9 +1172,12 @@ function Portfolio({
                 setTx({
                   ...tx,
                   side: "BUY",
+                  status: "FILLED",
                   quantity: "",
                   execution_price: "",
                   order_id: "",
+                  idempotency_key: crypto.randomUUID(),
+                  fx_rate: selected.currency === "USD" && fx ? String(fx) : "",
                   executed_at: "",
                 });
                 setShowFees(false);
@@ -1213,6 +1239,27 @@ function Portfolio({
                 onChange={(e) => setTx({ ...tx, order_id: e.target.value })}
               />
             </label>
+            <label>
+              สถานะคำสั่ง
+              <select value={tx.status} onChange={(e) => setTx({ ...tx, status: e.target.value })}>
+                <option value="FILLED">FILLED · จับคู่แล้ว</option>
+                <option value="PENDING">PENDING · รอจับคู่</option>
+                <option value="CANCELLED">CANCELLED · ยกเลิก</option>
+              </select>
+            </label>
+            {selected.currency === "USD" && (
+              <label>
+                FX Rate <span className="ms-optional">(THB / USD)</span>
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={tx.fx_rate}
+                  onChange={(e) => setTx({ ...tx, fx_rate: e.target.value })}
+                />
+                <small className="ms-table-sub">อ้างอิง {fx ? `1 USD = ${Number(fx).toFixed(4)} THB` : "ไม่มี FX ล่าสุด"}</small>
+              </label>
+            )}
             <div className="ms-trade-calculated">
               <div>
                 <span>มูลค่า{tx.side === "BUY" ? "ซื้อ" : "ขาย"}</span>
@@ -1307,6 +1354,7 @@ function Portfolio({
                 {txs.map((x) => (
                   <div className="ms-history-block" key={x.id}>
                     <strong>{x.side}</strong>
+                    <span className={`ms-status-badge ms-status-${String(x.status || "FILLED").toLowerCase()}`}>{transactionStatusLabel(x.status || "FILLED")}</span>
                     <span>{String(x.executed_at || "—").slice(0, 10)}</span>
                     <span>
                       {Number(x.quantity).toLocaleString()} ×{" "}
@@ -1314,12 +1362,16 @@ function Portfolio({
                     </span>
                     <span>
                       {money(Number(x.net_amount || 0), selected.currency)}
+                      {x.net_amount_thb != null && selected.currency !== "THB" ? ` · ${money(Number(x.net_amount_thb), "THB")}` : ""}
                     </span>
                   </div>
                 ))}
               </div>
             )}
           </div>
+          {txs.some((x) => String(x.status).toUpperCase() === "CANCELLED") && (
+            <div className="ms-banner ms-banner-warning">⚠ รายการ CANCELLED จะไม่ถูกนำไปคำนวณ Holdings, Cost Basis หรือ Average Cost</div>
+          )}
         </div>
       )}
       {deleteTarget && (
@@ -1398,7 +1450,7 @@ function Watchlist({
       lower_price: f.lower_price === "" ? null : Number(f.lower_price),
     };
     const editing = Boolean(edit && edit !== "new");
-    const r = await fetch(
+    const r = await apiFetch(
       editing ? API + "/api/v1/watchlist/" + edit : API + "/api/v1/watchlist",
       {
         method: editing ? "PUT" : "POST",
@@ -1413,7 +1465,7 @@ function Watchlist({
     reload();
   }
   async function remove(id: string) {
-    const r = await fetch(API + "/api/v1/watchlist/" + id, {
+    const r = await apiFetch(API + "/api/v1/watchlist/" + id, {
       method: "DELETE",
     });
     if (r.ok) reload();
@@ -1692,7 +1744,7 @@ function Settings({
         })
       : "—";
   async function save(k: string, v: any) {
-    const r = await fetch(`${API}/api/v1/settings/${k}`, {
+    const r = await apiFetch(`${API}/api/v1/settings/${k}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: v }),
@@ -1704,7 +1756,7 @@ function Settings({
     setBusy("stocks");
     setSyncMessage("");
     try {
-      const r = await fetch(`${API}/api/v1/market/stocks/sync`, {
+      const r = await apiFetch(`${API}/api/v1/market/stocks/sync`, {
         method: "POST",
       });
       const data = await r.json().catch(() => null);
@@ -1724,7 +1776,7 @@ function Settings({
     setBusy("fx");
     setSyncMessage("");
     try {
-      const r = await fetch(`${API}/api/v1/fx/usd-thb/sync`, {
+      const r = await apiFetch(`${API}/api/v1/fx/usd-thb/sync`, {
         method: "POST",
       });
       const data = await r.json().catch(() => null);
@@ -1968,5 +2020,49 @@ function SystemStatus({
         </div>
       </div>
     </section>
+  );
+}
+
+function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+  const [registerMode, setRegisterMode] = useState(false);
+  const [account, setAccount] = useState("");
+  const [secret, setSecret] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setMessage("");
+    if (!account.trim() || !secret) { setMessage("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"); return; }
+    setBusy(true);
+    try {
+      const endpoint = registerMode ? "register" : "login";
+      const r = await apiFetch(`${API}/api/v1/auth/${endpoint}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: account.trim(), password: secret }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        setMessage(body.detail === "username already exists" ? "ชื่อผู้ใช้นี้มีอยู่แล้ว" : registerMode ? "สมัครสมาชิกไม่สำเร็จ" : "เข้าสู่ระบบไม่สำเร็จ");
+        return;
+      }
+      setSecret(""); onSuccess();
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="ms-shell" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+      <div className="ms-card ms-card-body" style={{ width: "min(420px, 92vw)" }}>
+        <div className="ms-brand">
+          <div className="ms-brand-mark">MS</div>
+          <div><strong>MyStockAlert</strong><small>Secure Portfolio Monitor</small></div>
+        </div>
+        <h2>{registerMode ? "สร้างบัญชีใหม่" : "เข้าสู่ระบบ"}</h2>
+        <p>{registerMode ? "สร้างบัญชีเพื่อแยกข้อมูลพอร์ตและการแจ้งเตือนของคุณ" : "เข้าสู่ระบบเพื่อดูพอร์ตและการแจ้งเตือนของคุณ"}</p>
+        {message && <div className="ms-banner ms-banner-error">{message}</div>}
+        <label className="ms-field-label">ชื่อผู้ใช้<input value={account} onChange={(e) => setAccount(e.target.value)} autoComplete="username" /></label>
+        <label className="ms-field-label">รหัสผ่าน<input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete={registerMode ? "new-password" : "current-password"} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} /></label>
+        <button className="ms-button ms-button-primary" onClick={submit} disabled={busy}>{busy ? "กำลังดำเนินการ..." : registerMode ? "สร้างบัญชีและเข้าใช้งาน" : "เข้าสู่ระบบ"}</button>
+        <button className="ms-auth-switch" onClick={() => { setRegisterMode(!registerMode); setMessage(""); }}>{registerMode ? "มีบัญชีแล้ว · เข้าสู่ระบบ" : "ยังไม่มีบัญชี · สร้างบัญชี"}</button>
+        <small className="ms-auth-note">สมัครสมาชิกแบบง่าย ไม่ต้องยืนยันอีเมล</small>
+      </div>
+    </div>
   );
 }

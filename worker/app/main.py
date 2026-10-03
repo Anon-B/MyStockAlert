@@ -5,6 +5,7 @@ import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
+WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 POLL_SECONDS = int(os.getenv("MARKET_POLL_SECONDS", "60"))
 
 async def poll_market() -> None:
@@ -14,7 +15,7 @@ async def poll_market() -> None:
             response = await client.get(f"{BACKEND_URL}/api/v1/market/quotes")
             response.raise_for_status()
             quotes = response.json()
-            alert_response = await client.post(f"{BACKEND_URL}/api/v1/alerts/evaluate")
+            alert_response = await client.post(f"{BACKEND_URL}/api/v1/internal/alerts/evaluate", headers={"X-Worker-Token": WORKER_TOKEN})
             alert_response.raise_for_status()
             result = alert_response.json()
         print(f"market poll ok quotes={len(quotes)} alerts_created={result.get('created', 0)} started={started.isoformat()}")
