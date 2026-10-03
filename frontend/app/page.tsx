@@ -310,7 +310,7 @@ export default function Home() {
               onClick={() => setDarkPremium((v) => !v)}
               aria-label="เปลี่ยนธีม"
             >
-              {darkPremium ? "☼ Light Glass" : "◐ Dark Premium"}
+              {darkPremium ? "Light Glass" : "Dark Premium"}
             </button>
             {page === "dashboard" && <FxMini />}
             {page === "dashboard" && (
@@ -1899,7 +1899,7 @@ function Settings({
       <div className="ms-card ms-settings-card">
         <h2 className="ms-section-title">Settings</h2>
         <div className="ms-settings-group">
-          <h3>🔔 การแจ้งเตือน</h3>
+          <h3>การแจ้งเตือน</h3>
           <label className="ms-setting">
             <span>เปิด/ปิดแจ้งเตือน</span>
             <input
@@ -1934,7 +1934,7 @@ function Settings({
           </label>
         </div>
         <div className="ms-settings-group">
-          <h3>💰 การแสดงผล</h3>
+          <h3>การแสดงผล</h3>
           <label className="ms-setting">
             <span>รีเฟรชข้อมูล</span>
             <select
@@ -1990,7 +1990,7 @@ function Settings({
           </button>
         </div>
         <div className="ms-settings-group">
-          <h3>⚙ ระบบข้อมูล</h3>
+          <h3>ระบบข้อมูล</h3>
           <div className="ms-data-row">
             <span>Stock Master</span>
             <strong>
@@ -2074,17 +2074,17 @@ function DataManagement() {
   };
   return (
     <div className="ms-settings-group">
-      <h3>📦 Data Management</h3>
+      <h3>Data Management</h3>
       <p className="ms-muted">ส่งออกข้อมูลเป็น Excel หรือเตรียมไฟล์ Excel เพื่อนำเข้า โดยระบบจะตรวจสอบก่อนบันทึกจริง</p>
       <div className="ms-data-row"><span>Portfolio</span><div className="ms-button-row">
         <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/export/portfolio","MyStockAlert_Portfolio.xlsx")} disabled={!!busy}>Export Portfolio</button>
-        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/portfolio","MyStockAlert_Portfolio_Template.xlsx")} disabled={!!busy}>Template</button>
-        <label className="ms-button ms-button-light">Import<input hidden type="file" accept=".xlsx" onChange={e=>choose("portfolio",e.target.files?.[0])}/></label>
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/portfolio","MyStockAlert_Portfolio_Template.xlsx")} disabled={!!busy}>Portfolio Template</button>
+        <label className="ms-button ms-button-light">Import Portfolio<input hidden type="file" accept=".xlsx" onChange={e=>choose("portfolio",e.target.files?.[0])}/></label>
       </div></div>
       <div className="ms-data-row"><span>Transactions</span><div className="ms-button-row">
         <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/export/transactions","MyStockAlert_Transactions.xlsx")} disabled={!!busy}>Export Transactions</button>
-        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/transactions","MyStockAlert_Transactions_Template.xlsx")} disabled={!!busy}>Template</button>
-        <label className="ms-button ms-button-light">Import<input hidden type="file" accept=".xlsx" onChange={e=>choose("transactions",e.target.files?.[0])}/></label>
+        <button className="ms-button ms-button-light" onClick={()=>download("/api/v1/data/template/transactions","MyStockAlert_Transactions_Template.xlsx")} disabled={!!busy}>Transactions Template</button>
+        <label className="ms-button ms-button-light">Import Transactions<input hidden type="file" accept=".xlsx" onChange={e=>choose("transactions",e.target.files?.[0])}/></label>
       </div></div>
       {preview && <div className="ms-import-preview">
         <strong>Preview · {preview.total || 0} แถว</strong>
